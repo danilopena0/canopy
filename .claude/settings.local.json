@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "WebSearch",
+      "WebFetch(domain:careers.heb.com)",
+      "Bash(source:*)",
+      "Bash(python:*)",
+      "Bash(ls:*)",
+      "Bash(sqlite3:*)",
+      "Bash(python3:*)"
+    ]
+  }
+}

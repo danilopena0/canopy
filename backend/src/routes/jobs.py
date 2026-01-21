@@ -151,7 +151,11 @@ class JobController(Controller):
 
         if not updates:
             # No updates, just return the current job
-            return await self.get_job(db, job_id)
+            row = await db.fetchone("SELECT * FROM jobs WHERE id = ?", (job_id,))
+            if not row:
+                from litestar.exceptions import NotFoundException
+                raise NotFoundException(f"Job not found: {job_id}")
+            return Job(**dict(row))
 
         params.append(job_id)
         await db.execute(
@@ -160,7 +164,11 @@ class JobController(Controller):
         )
         await db.commit()
 
-        return await self.get_job(db, job_id)
+        row = await db.fetchone("SELECT * FROM jobs WHERE id = ?", (job_id,))
+        if not row:
+            from litestar.exceptions import NotFoundException
+            raise NotFoundException(f"Job not found: {job_id}")
+        return Job(**dict(row))
 
     @delete("/{job_id:str}", status_code=200)
     async def delete_job(self, db: Database, job_id: str) -> MessageResponse:

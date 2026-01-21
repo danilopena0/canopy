@@ -48,6 +48,9 @@ source venv/bin/activate  # Linux/macOS/WSL
 # Install dependencies (first time only)
 pip install -r requirements.txt
 
+# Install Playwright browsers for web scraping (first time only)
+playwright install
+
 # Copy environment file and add your API keys (first time only)
 cp ../.env.example .env
 
