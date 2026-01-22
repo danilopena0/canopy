@@ -27,6 +27,15 @@ function StatusBadge({ status }) {
   )
 }
 
+function formatSalary(min, max) {
+  if (!min && !max) return null
+  const fmt = (n) => '$' + n.toLocaleString()
+  if (min && max && min !== max) {
+    return `${fmt(min)} - ${fmt(max)}`
+  }
+  return fmt(min || max)
+}
+
 function JobRow({ job, onStatusChange }) {
   return (
     <tr className="hover:bg-gray-50">
@@ -38,6 +47,9 @@ function JobRow({ job, onStatusChange }) {
       </td>
       <td className="px-6 py-4 text-sm text-gray-600">
         {job.location || 'Not specified'}
+      </td>
+      <td className="px-6 py-4 text-sm text-gray-600">
+        {formatSalary(job.salary_min, job.salary_max) || '-'}
       </td>
       <td className="px-6 py-4 text-sm text-gray-600">
         {job.work_type || '-'}
@@ -178,6 +190,9 @@ export default function JobList() {
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Location
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Salary
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Type

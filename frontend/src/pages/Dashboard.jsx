@@ -12,6 +12,12 @@ function StatCard({ title, value, subtitle }) {
   )
 }
 
+const SOURCE_OPTIONS = [
+  { value: 'heb,indeed', label: 'All Sources' },
+  { value: 'heb', label: 'H-E-B' },
+  { value: 'indeed', label: 'Indeed' },
+]
+
 export default function Dashboard() {
   const [stats, setStats] = useState({
     newJobs: 0,
@@ -22,6 +28,7 @@ export default function Dashboard() {
   const [isHealthy, setIsHealthy] = useState(false)
   const [isSearching, setIsSearching] = useState(false)
   const [error, setError] = useState(null)
+  const [selectedSource, setSelectedSource] = useState('heb,indeed')
 
   useEffect(() => {
     loadDashboard()
@@ -61,9 +68,13 @@ export default function Dashboard() {
 
   async function handleRunSearch() {
     setIsSearching(true)
+    setError(null)
     try {
-      await runSearch()
+      const result = await runSearch({ sources: selectedSource })
       await loadDashboard()
+      if (result.errors && result.errors.length > 0) {
+        setError(`Completed with errors: ${result.errors.join('; ')}`)
+      }
     } catch (err) {
       setError(err.message)
     } finally {
@@ -84,13 +95,27 @@ export default function Dashboard() {
             )}
           </p>
         </div>
-        <button
-          onClick={handleRunSearch}
-          disabled={isSearching || !isHealthy}
-          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          {isSearching ? 'Searching...' : 'Run Search'}
-        </button>
+        <div className="flex items-center gap-2">
+          <select
+            value={selectedSource}
+            onChange={(e) => setSelectedSource(e.target.value)}
+            disabled={isSearching || !isHealthy}
+            className="px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
+          >
+            {SOURCE_OPTIONS.map((opt) => (
+              <option key={opt.value} value={opt.value}>
+                {opt.label}
+              </option>
+            ))}
+          </select>
+          <button
+            onClick={handleRunSearch}
+            disabled={isSearching || !isHealthy}
+            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {isSearching ? 'Searching...' : 'Run'}
+          </button>
+        </div>
       </div>
 
       {error && (

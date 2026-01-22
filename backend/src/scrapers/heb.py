@@ -20,6 +20,8 @@ class HEBScraper(BaseScraper):
     """Scraper for H-E-B careers page."""
 
     BASE_URL = "https://careers.heb.com"
+    # Pattern to match salary like "USD $72,200.00/Yr" or "$141,500.00/Yr"
+    SALARY_PATTERN = re.compile(r"(?:USD\s*)?\$([0-9,]+(?:\.\d{2})?)/Yr", re.IGNORECASE)
 
     def __init__(
         self,
@@ -37,6 +39,20 @@ class HEBScraper(BaseScraper):
     def _generate_job_id(self, url: str) -> str:
         """Generate a stable job ID from the URL."""
         return hashlib.sha256(url.encode()).hexdigest()[:16]
+
+    def _extract_salary(self, text: str) -> int | None:
+        """Extract annual salary from text. Returns salary as integer or None."""
+        if not text:
+            return None
+        match = self.SALARY_PATTERN.search(text)
+        if match:
+            # Remove commas and convert to int
+            salary_str = match.group(1).replace(",", "").split(".")[0]
+            try:
+                return int(salary_str)
+            except ValueError:
+                return None
+        return None
 
     def _build_search_url(self) -> str:
         """Build the search URL with location and keywords."""
@@ -182,6 +198,10 @@ class HEBScraper(BaseScraper):
                     if len(text) > len(description):
                         description = text
 
+            # Extract salary from page content
+            page_text = soup.get_text()
+            salary = self._extract_salary(page_text)
+
             return JobCreate(
                 id=self._generate_job_id(url),
                 url=url,
@@ -190,6 +210,8 @@ class HEBScraper(BaseScraper):
                 company="H-E-B",
                 location=location,
                 description=description[:10000] if description else None,
+                salary_min=salary,
+                salary_max=salary,  # H-E-B posts single salary, not range
             )
 
         except Exception as e:

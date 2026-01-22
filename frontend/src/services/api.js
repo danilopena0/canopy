@@ -64,10 +64,18 @@ export const searchJobs = (query, params = {}) => {
 }
 
 // Search API
-export const runSearch = () =>
-  request('/search/run', {
+export const runSearch = (params = {}) => {
+  const searchParams = new URLSearchParams()
+  Object.entries(params).forEach(([key, value]) => {
+    if (value !== null && value !== undefined && value !== '') {
+      searchParams.append(key, value)
+    }
+  })
+  const query = searchParams.toString()
+  return request(`/search/run${query ? `?${query}` : ''}`, {
     method: 'POST',
   })
+}
 
 export const getSearchRuns = (limit = 20) =>
   request(`/search/runs?limit=${limit}`)

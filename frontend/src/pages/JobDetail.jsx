@@ -110,9 +110,11 @@ export default function JobDetail() {
               {job.work_type && (
                 <span className="px-2 py-1 bg-gray-100 rounded">{job.work_type}</span>
               )}
-              {job.salary_min && job.salary_max && (
-                <span>
-                  ${job.salary_min.toLocaleString()} - ${job.salary_max.toLocaleString()}
+              {(job.salary_min || job.salary_max) && (
+                <span className="text-green-700 font-medium">
+                  {job.salary_min && job.salary_max && job.salary_min !== job.salary_max
+                    ? `$${job.salary_min.toLocaleString()} - $${job.salary_max.toLocaleString()}`
+                    : `$${(job.salary_min || job.salary_max).toLocaleString()}`}
                 </span>
               )}
             </div>

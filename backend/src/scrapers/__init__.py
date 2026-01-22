@@ -2,5 +2,6 @@
 
 from .base import BaseScraper
 from .heb import HEBScraper
+from .indeed import IndeedScraper
 
-__all__ = ["BaseScraper", "HEBScraper"]
+__all__ = ["BaseScraper", "HEBScraper", "IndeedScraper"]
