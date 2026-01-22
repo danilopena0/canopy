@@ -14,7 +14,7 @@ from ..models import (
     CompanySourceCreate,
     SearchRun,
 )
-from ..scrapers import HEBScraper, IndeedScraper
+from ..scrapers import HEBScraper, IndeedScraper, WellfoundScraper
 
 logger = logging.getLogger(__name__)
 
@@ -87,7 +87,7 @@ class SearchController(Controller):
         db: Database,
         location: Annotated[str, Parameter(query="location")] = "San Antonio, TX",
         keywords: Annotated[str, Parameter(query="keywords")] = "data scientist",
-        sources_param: Annotated[str, Parameter(query="sources")] = "heb,indeed",
+        sources_param: Annotated[str, Parameter(query="sources")] = "heb,indeed,wellfound",
         max_pages: Annotated[int, Parameter(query="max_pages", ge=1, le=10)] = 3,
     ) -> dict:
         """Trigger a batch search across enabled sources.
@@ -95,7 +95,7 @@ class SearchController(Controller):
         Args:
             location: Location to search for jobs. Defaults to San Antonio, TX.
             keywords: Keywords/query for job search. Defaults to "data scientist".
-            sources_param: Comma-separated list of sources to scrape (heb, indeed).
+            sources_param: Comma-separated list of sources to scrape (heb, indeed, wellfound).
             max_pages: Max pages to scrape from Indeed (1-10). Defaults to 3.
 
         Returns:
@@ -142,6 +142,32 @@ class SearchController(Controller):
             except Exception as e:
                 logger.error(f"Indeed scraper error: {e}")
                 errors.append(f"indeed: {str(e)}")
+
+        # Run Wellfound scraper
+        if "wellfound" in sources:
+            try:
+                logger.info("Running Wellfound scraper...")
+                # Map keywords to role slug
+                role_map = {
+                    "data scientist": "data-scientist",
+                    "machine learning": "machine-learning-engineer",
+                    "ml engineer": "machine-learning-engineer",
+                    "data engineer": "data-engineer",
+                    "ai engineer": "ai-engineer",
+                }
+                role = role_map.get(keywords.lower(), "data-scientist")
+                scraper = WellfoundScraper(
+                    role=role,
+                    max_pages=max_pages,
+                )
+                async for job in scraper.scrape():
+                    jobs_found += 1
+                    if await self._save_job(db, job):
+                        new_jobs += 1
+                await db.commit()
+            except Exception as e:
+                logger.error(f"Wellfound scraper error: {e}")
+                errors.append(f"wellfound: {str(e)}")
 
         duration = time.time() - start_time
 

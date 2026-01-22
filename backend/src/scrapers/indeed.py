@@ -260,17 +260,30 @@ class IndeedScraper(BaseScraper):
             if not title:
                 return None
 
-            # Extract company
+            # Extract company - look for specific company name element
             company = None
-            company_elem = card.find(class_=re.compile(r"company|companyName", re.I))
+            # Try data-testid first (more stable)
+            company_elem = card.find(attrs={"data-testid": "company-name"})
+            if not company_elem:
+                # Try class-based selector, but get only direct text
+                company_elem = card.find(class_=re.compile(r"companyName|company-name", re.I))
             if company_elem:
-                company = company_elem.get_text(strip=True)
+                # Get only the first text node to avoid concatenating location
+                company = company_elem.find(string=True, recursive=False)
+                if not company:
+                    company = company_elem.get_text(strip=True)
+                company = str(company).strip()
 
-            # Extract location
+            # Extract location - look for specific location element
             location = self.location
-            loc_elem = card.find(class_=re.compile(r"companyLocation|location", re.I))
+            loc_elem = card.find(attrs={"data-testid": "text-location"})
+            if not loc_elem:
+                loc_elem = card.find(class_=re.compile(r"companyLocation", re.I))
             if loc_elem:
                 location = loc_elem.get_text(strip=True)
+                # Clean up location - remove company name if accidentally included
+                if company and location.startswith(company):
+                    location = location[len(company):].strip()
 
             # Extract salary snippet if present
             salary_min, salary_max = None, None

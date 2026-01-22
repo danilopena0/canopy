@@ -13,9 +13,10 @@ function StatCard({ title, value, subtitle }) {
 }
 
 const SOURCE_OPTIONS = [
-  { value: 'heb,indeed', label: 'All Sources' },
+  { value: 'heb,indeed,wellfound', label: 'All Sources' },
   { value: 'heb', label: 'H-E-B' },
   { value: 'indeed', label: 'Indeed' },
+  { value: 'wellfound', label: 'Wellfound' },
 ]
 
 export default function Dashboard() {
@@ -28,7 +29,7 @@ export default function Dashboard() {
   const [isHealthy, setIsHealthy] = useState(false)
   const [isSearching, setIsSearching] = useState(false)
   const [error, setError] = useState(null)
-  const [selectedSource, setSelectedSource] = useState('heb,indeed')
+  const [selectedSource, setSelectedSource] = useState('heb,indeed,wellfound')
 
   useEffect(() => {
     loadDashboard()

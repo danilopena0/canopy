@@ -103,9 +103,10 @@ Both implement `LLMProvider` interface with `complete()` and `complete_json()` m
 Completed:
 - crawl4ai integration
 - H-E-B scraper (`backend/src/scrapers/heb.py`) - working
-- Indeed scraper (`backend/src/scrapers/indeed.py`) - implemented, needs testing
+- Indeed scraper (`backend/src/scrapers/indeed.py`) - working
+- Wellfound scraper (`backend/src/scrapers/wellfound.py`) - implemented
 - Batch search endpoint (`POST /api/search/run`) with multi-source support
-- Dashboard dropdown to select sources (All Sources / H-E-B / Indeed)
+- Dashboard dropdown to select sources (All Sources / H-E-B / Indeed / Wellfound)
 - San Antonio AI employers list (`backend/data/ai_employers.md`) - 34 companies
 
 Not started:
@@ -137,7 +138,8 @@ Not started:
 | Scraper | File | Status | Notes |
 |---------|------|--------|-------|
 | H-E-B | `scrapers/heb.py` | Working | Uses crawl4ai, extracts salary |
-| Indeed | `scrapers/indeed.py` | Implemented | Pagination, salary parsing, may hit CAPTCHAs |
+| Indeed | `scrapers/indeed.py` | Working | Pagination, salary parsing, may hit CAPTCHAs |
+| Wellfound | `scrapers/wellfound.py` | Implemented | Startup jobs, extracts Apollo GraphQL state from Next.js |
 | LinkedIn | `scrapers/linkedin.py` | Stub | Deprioritized - too aggressive anti-bot |
 | Company | `scrapers/company.py` | Stub | Generic career page scraper |
 
