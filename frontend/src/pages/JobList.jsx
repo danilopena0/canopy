@@ -3,12 +3,12 @@ import { Link } from 'react-router-dom'
 import { getJobs, searchJobs, updateJob } from '../services/api'
 
 const STATUS_OPTIONS = [
-  { value: '', label: 'All Statuses' },
-  { value: 'new', label: 'New' },
-  { value: 'reviewed', label: 'Reviewed' },
-  { value: 'applied', label: 'Applied' },
-  { value: 'rejected', label: 'Rejected' },
-  { value: 'archived', label: 'Archived' },
+  { value: '', label: 'All', color: 'bg-gray-100 text-gray-700 hover:bg-gray-200' },
+  { value: 'new', label: 'New', color: 'bg-blue-100 text-blue-800 hover:bg-blue-200' },
+  { value: 'reviewed', label: 'Reviewed', color: 'bg-yellow-100 text-yellow-800 hover:bg-yellow-200' },
+  { value: 'applied', label: 'Applied', color: 'bg-green-100 text-green-800 hover:bg-green-200' },
+  { value: 'rejected', label: 'Rejected', color: 'bg-red-100 text-red-800 hover:bg-red-200' },
+  { value: 'archived', label: 'Archived', color: 'bg-gray-100 text-gray-600 hover:bg-gray-200' },
 ]
 
 function StatusBadge({ status }) {
@@ -27,6 +27,50 @@ function StatusBadge({ status }) {
   )
 }
 
+function formatRelativeTime(dateString) {
+  const date = new Date(dateString)
+  const now = new Date()
+  const diffMs = now - date
+  const diffSecs = Math.floor(diffMs / 1000)
+  const diffMins = Math.floor(diffSecs / 60)
+  const diffHours = Math.floor(diffMins / 60)
+  const diffDays = Math.floor(diffHours / 24)
+
+  if (diffSecs < 60) return 'just now'
+  if (diffMins < 60) return `${diffMins}m ago`
+  if (diffHours < 24) return `${diffHours}h ago`
+  if (diffDays === 1) return 'yesterday'
+  if (diffDays < 7) return `${diffDays}d ago`
+  if (diffDays < 30) return `${Math.floor(diffDays / 7)}w ago`
+  return date.toLocaleDateString()
+}
+
+function LoadingSpinner() {
+  return (
+    <div className="flex items-center justify-center p-8">
+      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+      <span className="ml-3 text-gray-500">Loading jobs...</span>
+    </div>
+  )
+}
+
+function SortableHeader({ label, field, currentSort, currentOrder, onSort }) {
+  const isActive = currentSort === field
+  const arrow = isActive ? (currentOrder === 'asc' ? '↑' : '↓') : ''
+
+  return (
+    <th
+      className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 select-none"
+      onClick={() => onSort(field)}
+    >
+      <span className="flex items-center gap-1">
+        {label}
+        <span className="text-blue-600">{arrow}</span>
+      </span>
+    </th>
+  )
+}
+
 function formatSalary(min, max) {
   if (!min && !max) return null
   const fmt = (n) => '$' + n.toLocaleString()
@@ -36,14 +80,44 @@ function formatSalary(min, max) {
   return fmt(min || max)
 }
 
-function JobRow({ job, onStatusChange }) {
+function SourceBadge({ source }) {
+  const colors = {
+    heb: 'bg-red-50 text-red-700',
+    indeed: 'bg-purple-50 text-purple-700',
+    wellfound: 'bg-orange-50 text-orange-700',
+  }
+  const labels = {
+    heb: 'H-E-B',
+    indeed: 'Indeed',
+    wellfound: 'Wellfound',
+  }
   return (
-    <tr className="hover:bg-gray-50">
+    <span className={`px-1.5 py-0.5 text-xs rounded ${colors[source] || 'bg-gray-50 text-gray-600'}`}>
+      {labels[source] || source}
+    </span>
+  )
+}
+
+function DuplicateBadge() {
+  return (
+    <span className="px-1.5 py-0.5 text-xs rounded bg-amber-50 text-amber-700" title="Duplicate of another job">
+      Dup
+    </span>
+  )
+}
+
+function JobRow({ job }) {
+  return (
+    <tr className={`hover:bg-gray-50 ${job.duplicate_of ? 'opacity-60' : ''}`}>
       <td className="px-6 py-4">
         <Link to={`/jobs/${job.id}`} className="text-blue-600 hover:text-blue-800 font-medium">
           {job.title}
         </Link>
-        <p className="text-sm text-gray-500">{job.company}</p>
+        <div className="flex items-center gap-2 mt-1">
+          <span className="text-sm text-gray-500">{job.company}</span>
+          <SourceBadge source={job.source} />
+          {job.duplicate_of && <DuplicateBadge />}
+        </div>
       </td>
       <td className="px-6 py-4 text-sm text-gray-600">
         {job.location || 'Not specified'}
@@ -64,8 +138,8 @@ function JobRow({ job, onStatusChange }) {
       <td className="px-6 py-4">
         <StatusBadge status={job.status} />
       </td>
-      <td className="px-6 py-4 text-sm text-gray-500">
-        {new Date(job.scraped_at).toLocaleDateString()}
+      <td className="px-6 py-4 text-sm text-gray-500" title={new Date(job.scraped_at).toLocaleString()}>
+        {formatRelativeTime(job.scraped_at)}
       </td>
     </tr>
   )
@@ -81,12 +155,17 @@ export default function JobList() {
   // Filters
   const [statusFilter, setStatusFilter] = useState('')
   const [searchQuery, setSearchQuery] = useState('')
+  const [hideDuplicates, setHideDuplicates] = useState(true)
+
+  // Sorting
+  const [sortField, setSortField] = useState('scraped_at')
+  const [sortOrder, setSortOrder] = useState('desc')
 
   const pageSize = 20
 
   useEffect(() => {
     loadJobs()
-  }, [page, statusFilter])
+  }, [page, statusFilter, sortField, sortOrder])
 
   async function loadJobs() {
     setLoading(true)
@@ -133,6 +212,49 @@ export default function JobList() {
 
   const totalPages = Math.ceil(total / pageSize)
 
+  function handleSort(field) {
+    if (sortField === field) {
+      setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')
+    } else {
+      setSortField(field)
+      setSortOrder('desc')
+    }
+    setPage(1)
+  }
+
+  // Filter and sort jobs client-side
+  const filteredJobs = hideDuplicates ? jobs.filter(job => !job.duplicate_of) : jobs
+  const sortedJobs = [...filteredJobs].sort((a, b) => {
+    let aVal = a[sortField]
+    let bVal = b[sortField]
+
+    // Handle null/undefined
+    if (aVal == null) return sortOrder === 'asc' ? 1 : -1
+    if (bVal == null) return sortOrder === 'asc' ? -1 : 1
+
+    // Handle dates
+    if (sortField === 'scraped_at') {
+      aVal = new Date(aVal).getTime()
+      bVal = new Date(bVal).getTime()
+    }
+
+    // Handle numbers
+    if (sortField === 'fit_score' || sortField === 'salary_min') {
+      aVal = Number(aVal) || 0
+      bVal = Number(bVal) || 0
+    }
+
+    // Handle strings
+    if (typeof aVal === 'string') {
+      aVal = aVal.toLowerCase()
+      bVal = bVal.toLowerCase()
+    }
+
+    if (aVal < bVal) return sortOrder === 'asc' ? -1 : 1
+    if (aVal > bVal) return sortOrder === 'asc' ? 1 : -1
+    return 0
+  })
+
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
@@ -140,33 +262,50 @@ export default function JobList() {
         <span className="text-gray-500">{total} total</span>
       </div>
 
-      {/* Filters */}
-      <div className="bg-white rounded-lg shadow p-4 mb-6">
-        <div className="flex flex-wrap gap-4">
-          <form onSubmit={handleSearch} className="flex-1 min-w-[200px]">
-            <input
-              type="text"
-              placeholder="Search jobs..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            />
-          </form>
-          <select
-            value={statusFilter}
-            onChange={(e) => {
-              setStatusFilter(e.target.value)
-              setPage(1)
-            }}
-            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-          >
-            {STATUS_OPTIONS.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-        </div>
+      {/* Search */}
+      <div className="bg-white rounded-lg shadow p-4 mb-4">
+        <form onSubmit={handleSearch}>
+          <input
+            type="text"
+            placeholder="Search jobs..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          />
+        </form>
+      </div>
+
+      {/* Status Filter Buttons */}
+      <div className="flex flex-wrap items-center gap-2 mb-6">
+        {STATUS_OPTIONS.map((option) => {
+          const isActive = statusFilter === option.value
+          return (
+            <button
+              key={option.value}
+              onClick={() => {
+                setStatusFilter(option.value)
+                setPage(1)
+              }}
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                isActive
+                  ? option.color.replace('hover:', '') + ' ring-2 ring-offset-1 ring-blue-500'
+                  : 'bg-white text-gray-600 hover:bg-gray-50 border border-gray-200'
+              }`}
+            >
+              {option.label}
+            </button>
+          )
+        })}
+        <div className="h-6 w-px bg-gray-300 mx-2"></div>
+        <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={hideDuplicates}
+            onChange={(e) => setHideDuplicates(e.target.checked)}
+            className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+          />
+          Hide duplicates
+        </label>
       </div>
 
       {error && (
@@ -178,38 +317,65 @@ export default function JobList() {
       {/* Job table */}
       <div className="bg-white rounded-lg shadow overflow-hidden">
         {loading ? (
-          <div className="p-8 text-center text-gray-500">Loading...</div>
-        ) : jobs.length === 0 ? (
-          <div className="p-8 text-center text-gray-500">No jobs found</div>
+          <LoadingSpinner />
+        ) : filteredJobs.length === 0 ? (
+          <div className="p-8 text-center">
+            <p className="text-gray-500 mb-2">No jobs found</p>
+            <p className="text-sm text-gray-400">
+              {jobs.length > 0 && hideDuplicates
+                ? 'All matching jobs are duplicates. Uncheck "Hide duplicates" to see them.'
+                : 'Try adjusting your search or filters'}
+            </p>
+          </div>
         ) : (
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Job
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Location
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Salary
-                </th>
+                <SortableHeader
+                  label="Job"
+                  field="title"
+                  currentSort={sortField}
+                  currentOrder={sortOrder}
+                  onSort={handleSort}
+                />
+                <SortableHeader
+                  label="Location"
+                  field="location"
+                  currentSort={sortField}
+                  currentOrder={sortOrder}
+                  onSort={handleSort}
+                />
+                <SortableHeader
+                  label="Salary"
+                  field="salary_min"
+                  currentSort={sortField}
+                  currentOrder={sortOrder}
+                  onSort={handleSort}
+                />
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Type
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Score
-                </th>
+                <SortableHeader
+                  label="Score"
+                  field="fit_score"
+                  currentSort={sortField}
+                  currentOrder={sortOrder}
+                  onSort={handleSort}
+                />
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Status
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Added
-                </th>
+                <SortableHeader
+                  label="Added"
+                  field="scraped_at"
+                  currentSort={sortField}
+                  currentOrder={sortOrder}
+                  onSort={handleSort}
+                />
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {jobs.map((job) => (
+              {sortedJobs.map((job) => (
                 <JobRow key={job.id} job={job} />
               ))}
             </tbody>

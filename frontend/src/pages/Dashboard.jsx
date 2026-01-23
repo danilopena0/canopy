@@ -2,11 +2,46 @@ import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { getJobs, getSearchRuns, runSearch, checkHealth } from '../services/api'
 
-function StatCard({ title, value, subtitle }) {
+function formatRelativeTime(dateString) {
+  const date = new Date(dateString)
+  const now = new Date()
+  const diffMs = now - date
+  const diffSecs = Math.floor(diffMs / 1000)
+  const diffMins = Math.floor(diffSecs / 60)
+  const diffHours = Math.floor(diffMins / 60)
+  const diffDays = Math.floor(diffHours / 24)
+
+  if (diffSecs < 60) return 'just now'
+  if (diffMins < 60) return `${diffMins} minute${diffMins > 1 ? 's' : ''} ago`
+  if (diffHours < 24) return `${diffHours} hour${diffHours > 1 ? 's' : ''} ago`
+  if (diffDays === 1) return 'yesterday'
+  if (diffDays < 7) return `${diffDays} days ago`
+  return date.toLocaleDateString()
+}
+
+function LoadingSpinner({ size = 'md', light = false }) {
+  const sizes = {
+    sm: 'h-4 w-4',
+    md: 'h-6 w-6',
+    lg: 'h-8 w-8',
+  }
+  const color = light ? 'border-white' : 'border-blue-600'
+  return (
+    <div className={`animate-spin rounded-full border-b-2 ${color} ${sizes[size]}`}></div>
+  )
+}
+
+function StatCard({ title, value, subtitle, loading }) {
   return (
     <div className="bg-white rounded-lg shadow p-6">
       <h3 className="text-sm font-medium text-gray-500">{title}</h3>
-      <p className="text-3xl font-bold text-gray-900 mt-2">{value}</p>
+      {loading ? (
+        <div className="mt-2">
+          <LoadingSpinner size="md" />
+        </div>
+      ) : (
+        <p className="text-3xl font-bold text-gray-900 mt-2">{value}</p>
+      )}
       {subtitle && <p className="text-sm text-gray-500 mt-1">{subtitle}</p>}
     </div>
   )
@@ -28,6 +63,7 @@ export default function Dashboard() {
   const [lastRun, setLastRun] = useState(null)
   const [isHealthy, setIsHealthy] = useState(false)
   const [isSearching, setIsSearching] = useState(false)
+  const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState(null)
   const [selectedSource, setSelectedSource] = useState('heb,indeed,wellfound')
 
@@ -36,6 +72,7 @@ export default function Dashboard() {
   }, [])
 
   async function loadDashboard() {
+    setIsLoading(true)
     try {
       // Check API health
       await checkHealth()
@@ -64,6 +101,8 @@ export default function Dashboard() {
     } catch (err) {
       setError(err.message)
       setIsHealthy(false)
+    } finally {
+      setIsLoading(false)
     }
   }
 
@@ -112,9 +151,10 @@ export default function Dashboard() {
           <button
             onClick={handleRunSearch}
             disabled={isSearching || !isHealthy}
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
           >
-            {isSearching ? 'Searching...' : 'Run'}
+            {isSearching && <LoadingSpinner size="sm" light />}
+            {isSearching ? 'Searching...' : 'Run Search'}
           </button>
         </div>
       </div>
@@ -126,29 +166,32 @@ export default function Dashboard() {
       )}
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-        <StatCard title="New Jobs" value={stats.newJobs} subtitle="Awaiting review" />
-        <StatCard title="Total Jobs" value={stats.totalJobs} subtitle="In database" />
-        <StatCard title="Applied" value={stats.applied} subtitle="Applications sent" />
+        <StatCard title="New Jobs" value={stats.newJobs} subtitle="Awaiting review" loading={isLoading} />
+        <StatCard title="Total Jobs" value={stats.totalJobs} subtitle="In database" loading={isLoading} />
+        <StatCard title="Applied" value={stats.applied} subtitle="Applications sent" loading={isLoading} />
       </div>
 
       {lastRun && (
         <div className="bg-white rounded-lg shadow p-6">
-          <h2 className="text-lg font-medium text-gray-900 mb-4">Last Search</h2>
-          <div className="text-sm text-gray-600">
-            <p>
-              <span className="font-medium">Run at:</span>{' '}
-              {new Date(lastRun.run_at).toLocaleString()}
-            </p>
-            <p>
-              <span className="font-medium">Jobs found:</span> {lastRun.jobs_found}
-            </p>
-            <p>
-              <span className="font-medium">New jobs:</span> {lastRun.new_jobs}
-            </p>
-            <p>
-              <span className="font-medium">Duration:</span>{' '}
-              {lastRun.duration_seconds.toFixed(2)}s
-            </p>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-medium text-gray-900">Last Search</h2>
+            <span className="text-sm text-gray-500" title={new Date(lastRun.run_at).toLocaleString()}>
+              {formatRelativeTime(lastRun.run_at)}
+            </span>
+          </div>
+          <div className="grid grid-cols-3 gap-4 text-center">
+            <div>
+              <p className="text-2xl font-bold text-gray-900">{lastRun.jobs_found}</p>
+              <p className="text-sm text-gray-500">Found</p>
+            </div>
+            <div>
+              <p className="text-2xl font-bold text-blue-600">{lastRun.new_jobs}</p>
+              <p className="text-sm text-gray-500">New</p>
+            </div>
+            <div>
+              <p className="text-2xl font-bold text-gray-900">{lastRun.duration_seconds.toFixed(1)}s</p>
+              <p className="text-sm text-gray-500">Duration</p>
+            </div>
           </div>
         </div>
       )}

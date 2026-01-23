@@ -8,7 +8,8 @@
       "Bash(ls:*)",
       "Bash(sqlite3:*)",
       "Bash(python3:*)",
-      "WebFetch(domain:scrapfly.io)"
+      "WebFetch(domain:scrapfly.io)",
+      "Bash(npm run build:*)"
     ]
   }
 }

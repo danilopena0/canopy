@@ -30,7 +30,9 @@ CREATE TABLE IF NOT EXISTS jobs (
     fit_score REAL,
     fit_rationale TEXT,
     status TEXT DEFAULT 'new',
-    notes TEXT
+    notes TEXT,
+    dedup_key TEXT,
+    duplicate_of TEXT REFERENCES jobs(id)
 );
 
 -- Search runs table: tracks batch search history
@@ -69,6 +71,8 @@ CREATE INDEX IF NOT EXISTS idx_jobs_status ON jobs(status);
 CREATE INDEX IF NOT EXISTS idx_jobs_source ON jobs(source);
 CREATE INDEX IF NOT EXISTS idx_jobs_company ON jobs(company);
 CREATE INDEX IF NOT EXISTS idx_jobs_scraped_at ON jobs(scraped_at);
+CREATE INDEX IF NOT EXISTS idx_jobs_dedup_key ON jobs(dedup_key);
+CREATE INDEX IF NOT EXISTS idx_jobs_duplicate_of ON jobs(duplicate_of);
 CREATE INDEX IF NOT EXISTS idx_applications_job_id ON applications(job_id);
 """
 
@@ -138,8 +142,32 @@ class Database:
         # Create FTS virtual table and triggers
         await self._connection.executescript(FTS_SQL)
 
+        # Run migrations for existing databases
+        await self._run_migrations()
+
         await self._connection.commit()
         logger.info("Database schema initialized")
+
+    async def _run_migrations(self) -> None:
+        """Run migrations for existing databases."""
+        if self._connection is None:
+            return
+
+        # Check if dedup_key column exists
+        cursor = await self._connection.execute("PRAGMA table_info(jobs)")
+        columns = {row[1] for row in await cursor.fetchall()}
+
+        if "dedup_key" not in columns:
+            logger.info("Migrating: adding dedup_key column")
+            await self._connection.execute(
+                "ALTER TABLE jobs ADD COLUMN dedup_key TEXT"
+            )
+
+        if "duplicate_of" not in columns:
+            logger.info("Migrating: adding duplicate_of column")
+            await self._connection.execute(
+                "ALTER TABLE jobs ADD COLUMN duplicate_of TEXT REFERENCES jobs(id)"
+            )
 
     async def disconnect(self) -> None:
         """Close database connection."""

@@ -56,6 +56,8 @@ class Job(JobBase):
     fit_rationale: str | None = None
     status: JobStatus = "new"
     notes: str | None = None
+    dedup_key: str | None = None
+    duplicate_of: str | None = None
 
     class Config:
         from_attributes = True
