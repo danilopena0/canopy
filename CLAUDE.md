@@ -226,7 +226,7 @@ curl -X POST "http://localhost:8000/api/applications/{job_id}/cover" \
   -d '{"tone": "professional"}'  # or "enthusiastic", "casual"
 ```
 
-### Usage
+### Usage: Web UI
 
 1. Create `backend/profile/resume.md` with your master resume in markdown
 2. Optionally add experience documents in `backend/profile/experience/`
@@ -236,6 +236,24 @@ curl -X POST "http://localhost:8000/api/applications/{job_id}/cover" \
 6. Use "Copy to Clipboard" to copy generated content
 
 Generated content is saved to the database and will reload when you revisit the job.
+
+### Usage: Claude Code (Direct)
+
+You can also ask Claude Code directly to tailor your resume or write cover letters. This doesn't require API keys.
+
+**Helper script to get job details:**
+```bash
+cd backend
+python scripts/get_job.py --list        # List recent jobs with IDs
+python scripts/get_job.py <job_id>      # Get full job details
+```
+
+**Example prompts to Claude Code:**
+- "Read my resume at backend/profile/resume.md and tailor it for job ID abc12345"
+- "Write a cover letter for the Data Scientist position at USAA based on my resume"
+- "Look at job abc12345 and tell me how well my resume matches"
+
+Claude Code will read your files and generate content directly in the conversation.
 
 ## Notes
 
