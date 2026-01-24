@@ -12,6 +12,9 @@ JobStatus = Literal["new", "reviewed", "applied", "rejected", "archived"]
 # Work type enum
 WorkType = Literal["remote", "hybrid", "onsite"]
 
+# Cover letter tone enum
+CoverLetterTone = Literal["professional", "enthusiastic", "casual"]
+
 
 # --- Job Models ---
 
@@ -107,6 +110,9 @@ class ApplicationCreate(BaseModel):
     job_id: str
     resume_version: str | None = None
     cover_letter: str | None = None
+    tailored_resume: str | None = None
+    resume_highlights: str | None = None  # JSON array as string
+    cover_tone: CoverLetterTone | None = None
 
 
 class ApplicationUpdate(BaseModel):
@@ -114,6 +120,9 @@ class ApplicationUpdate(BaseModel):
 
     resume_version: str | None = None
     cover_letter: str | None = None
+    tailored_resume: str | None = None
+    resume_highlights: str | None = None
+    cover_tone: CoverLetterTone | None = None
     applied_at: datetime | None = None
     response: str | None = None
 
@@ -125,12 +134,62 @@ class Application(BaseModel):
     job_id: str
     resume_version: str | None = None
     cover_letter: str | None = None
+    tailored_resume: str | None = None
+    resume_highlights: str | None = None  # JSON array as string
+    cover_tone: CoverLetterTone | None = None
     tailored_at: datetime
     applied_at: datetime | None = None
     response: str | None = None
 
     class Config:
         from_attributes = True
+
+
+class TailorResumeRequest(BaseModel):
+    """Request model for tailoring a resume."""
+
+    pass  # No additional options needed for now
+
+
+class TailorResumeResponse(BaseModel):
+    """Response model for tailored resume."""
+
+    application_id: int
+    job_id: str
+    tailored_resume: str
+    highlights: list[str]
+
+
+class GenerateCoverRequest(BaseModel):
+    """Request model for generating a cover letter."""
+
+    tone: CoverLetterTone = "professional"
+    template_name: str | None = None
+
+
+class GenerateCoverResponse(BaseModel):
+    """Response model for generated cover letter."""
+
+    application_id: int
+    job_id: str
+    cover_letter: str
+    tone_used: str
+
+
+class DocumentInfo(BaseModel):
+    """Document metadata."""
+
+    filename: str
+    path: str
+    size_bytes: int
+    doc_type: Literal["resume", "experience", "template"]
+
+
+class DocumentList(BaseModel):
+    """List of available documents."""
+
+    documents: list[DocumentInfo]
+    has_resume: bool
 
 
 # --- Company Source Models ---

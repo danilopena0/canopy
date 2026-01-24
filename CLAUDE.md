@@ -38,7 +38,10 @@ Frontend (React + Vite)  →  Backend API (Litestar)  →  SQLite + sqlite-vec
 | `backend/src/db.py` | Database connection, schema, helpers |
 | `backend/src/models.py` | Pydantic request/response models |
 | `backend/src/services/llm.py` | LLM provider abstraction (Perplexity/Claude) |
+| `backend/src/services/resume.py` | Resume tailoring service with LLM |
+| `backend/src/services/cover.py` | Cover letter generation service with LLM |
 | `backend/src/routes/jobs.py` | Job CRUD and search endpoints |
+| `backend/src/routes/applications.py` | Application tracking, tailor/cover endpoints |
 | `backend/src/routes/search.py` | Batch search endpoint, runs scrapers |
 | `backend/src/scrapers/base.py` | Abstract base class for scrapers |
 | `backend/src/scrapers/heb.py` | H-E-B careers scraper |
@@ -121,10 +124,19 @@ Not started:
 - Job ranking by score
 - Vector embeddings for semantic search
 
-**Phase 4 TODO**: Application Support
-- Resume tailoring with LLM
-- Cover letter generation
-- Application tracking workflow
+**Phase 4 In Progress**: Application Support (as of 2026-01-24)
+
+Completed:
+- Resume tailoring with LLM (`backend/src/services/resume.py`)
+- Cover letter generation with tone options (`backend/src/services/cover.py`)
+- Document storage in `backend/profile/` (gitignored)
+- API endpoints: `POST /api/applications/{job_id}/tailor`, `POST /api/applications/{job_id}/cover`
+- `GET /api/documents` endpoint to list available documents
+- JobDetail UI with tailor/cover buttons, tone selector, copy-to-clipboard
+- Generated content saved to applications table and displayed on reload
+
+Not started:
+- Application tracking workflow improvements
 - Email/calendar integration (stretch)
 
 **Phase 5 TODO**: Automation & Polish
@@ -184,6 +196,46 @@ DATABASE_PATH        - SQLite file path
 SCRAPE_DELAY_SECONDS - Rate limit for scrapers
 LOG_LEVEL            - Logging verbosity
 ```
+
+## Resume & Cover Letter Generation
+
+### Document Storage Structure
+
+```
+backend/profile/           # Gitignored - user's documents
+  resume.md                # Master resume (required for tailoring)
+  experience/              # Additional experience documents (optional)
+    project_1.md
+    leadership_examples.md
+  templates/               # Cover letter templates (optional)
+    cover_letter_base.md
+```
+
+### API Endpoints
+
+```bash
+# List available documents
+curl http://localhost:8000/api/documents
+
+# Tailor resume for a job
+curl -X POST "http://localhost:8000/api/applications/{job_id}/tailor"
+
+# Generate cover letter with tone
+curl -X POST "http://localhost:8000/api/applications/{job_id}/cover" \
+  -H "Content-Type: application/json" \
+  -d '{"tone": "professional"}'  # or "enthusiastic", "casual"
+```
+
+### Usage
+
+1. Create `backend/profile/resume.md` with your master resume in markdown
+2. Optionally add experience documents in `backend/profile/experience/`
+3. Go to a job detail page in the UI
+4. Click "Tailor Resume" to generate a tailored version
+5. Select tone and click "Generate Cover Letter"
+6. Use "Copy to Clipboard" to copy generated content
+
+Generated content is saved to the database and will reload when you revisit the job.
 
 ## Notes
 

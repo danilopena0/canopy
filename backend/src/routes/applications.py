@@ -1,19 +1,56 @@
 """Application routes for tracking job applications."""
 
-from typing import Annotated
+import json
+import logging
+from pathlib import Path
+from typing import Annotated, Any
 
 from litestar import Controller, get, patch, post
 from litestar.di import Provide
 from litestar.exceptions import NotFoundException
 from litestar.params import Parameter
 
+from ..config import get_settings
 from ..db import Database, db_dependency
 from ..models import (
     Application,
     ApplicationCreate,
     ApplicationUpdate,
-    MessageResponse,
+    DocumentInfo,
+    DocumentList,
+    GenerateCoverRequest,
+    GenerateCoverResponse,
+    TailorResumeRequest,
+    TailorResumeResponse,
 )
+from ..services.cover import CoverLetterService
+from ..services.resume import ResumeService
+
+logger = logging.getLogger(__name__)
+
+
+def _load_profile() -> dict[str, Any]:
+    """Load user profile from file."""
+    settings = get_settings()
+    db_path = Path(settings.database_path)
+    profile_path = db_path.parent / "profile.json"
+
+    if profile_path.exists():
+        with open(profile_path) as f:
+            return json.load(f)
+
+    # Return default profile
+    return {
+        "name": "",
+        "target_titles": ["Data Scientist", "ML Engineer", "AI Engineer"],
+        "skills": {"languages": [], "ml_tools": [], "platforms": [], "other": []},
+        "experience_years": 0,
+        "locations": ["San Antonio, TX", "Austin, TX", "Remote"],
+        "work_types": ["remote", "hybrid"],
+        "industries": [],
+        "min_salary": None,
+        "dealbreakers": [],
+    }
 
 
 class ApplicationController(Controller):
@@ -54,36 +91,146 @@ class ApplicationController(Controller):
 
     @post("/{job_id:str}/tailor")
     async def tailor_resume(
-        self, db: Database, job_id: str
-    ) -> MessageResponse:
+        self, db: Database, job_id: str, data: TailorResumeRequest | None = None
+    ) -> TailorResumeResponse:
         """Generate a tailored resume for a job.
 
-        TODO: Implement in Phase 4 with resume tailoring logic.
+        Uses the master resume and experience documents from backend/profile/
+        along with the job description to generate a tailored resume via LLM.
         """
-        # Verify job exists
-        job = await db.fetchone("SELECT id FROM jobs WHERE id = ?", (job_id,))
-        if not job:
+        # Get job details
+        job_row = await db.fetchone("SELECT * FROM jobs WHERE id = ?", (job_id,))
+        if not job_row:
             raise NotFoundException(f"Job not found: {job_id}")
 
-        return MessageResponse(
-            message="Resume tailoring will be implemented in Phase 4"
+        job = dict(job_row)
+
+        # Load user profile
+        profile = _load_profile()
+
+        # Generate tailored resume
+        resume_service = ResumeService()
+        try:
+            result = await resume_service.tailor_resume(
+                job_title=job["title"],
+                company=job["company"],
+                job_description=job.get("description") or "",
+                requirements=job.get("requirements"),
+                profile=profile,
+            )
+        finally:
+            await resume_service.close()
+
+        # Check for existing application or create new one
+        existing = await db.fetchone(
+            "SELECT id FROM applications WHERE job_id = ?", (job_id,)
+        )
+
+        highlights_json = json.dumps(result["highlights"])
+
+        if existing:
+            app_id = existing["id"]
+            await db.execute(
+                """
+                UPDATE applications
+                SET tailored_resume = ?, resume_highlights = ?, tailored_at = CURRENT_TIMESTAMP
+                WHERE id = ?
+                """,
+                (result["tailored_resume"], highlights_json, app_id),
+            )
+        else:
+            cursor = await db.execute(
+                """
+                INSERT INTO applications (job_id, tailored_resume, resume_highlights)
+                VALUES (?, ?, ?)
+                """,
+                (job_id, result["tailored_resume"], highlights_json),
+            )
+            app_id = cursor.lastrowid
+
+        await db.commit()
+        logger.info(f"Tailored resume generated for job {job_id}")
+
+        return TailorResumeResponse(
+            application_id=app_id,
+            job_id=job_id,
+            tailored_resume=result["tailored_resume"],
+            highlights=result["highlights"],
         )
 
     @post("/{job_id:str}/cover")
     async def generate_cover_letter(
-        self, db: Database, job_id: str
-    ) -> MessageResponse:
+        self, db: Database, job_id: str, data: GenerateCoverRequest | None = None
+    ) -> GenerateCoverResponse:
         """Generate a cover letter for a job.
 
-        TODO: Implement in Phase 4 with cover letter generation logic.
+        Uses the user profile and resume to generate a personalized cover letter
+        via LLM with the specified tone.
         """
-        # Verify job exists
-        job = await db.fetchone("SELECT id FROM jobs WHERE id = ?", (job_id,))
-        if not job:
+        # Default request if none provided
+        if data is None:
+            data = GenerateCoverRequest()
+
+        # Get job details
+        job_row = await db.fetchone("SELECT * FROM jobs WHERE id = ?", (job_id,))
+        if not job_row:
             raise NotFoundException(f"Job not found: {job_id}")
 
-        return MessageResponse(
-            message="Cover letter generation will be implemented in Phase 4"
+        job = dict(job_row)
+
+        # Load user profile
+        profile = _load_profile()
+
+        # Generate cover letter
+        cover_service = CoverLetterService()
+        try:
+            result = await cover_service.generate_cover_letter(
+                job_title=job["title"],
+                company=job["company"],
+                location=job.get("location"),
+                work_type=job.get("work_type"),
+                job_description=job.get("description") or "",
+                requirements=job.get("requirements"),
+                profile=profile,
+                tone=data.tone,
+                template_name=data.template_name,
+            )
+        finally:
+            await cover_service.close()
+
+        # Check for existing application or create new one
+        existing = await db.fetchone(
+            "SELECT id FROM applications WHERE job_id = ?", (job_id,)
+        )
+
+        if existing:
+            app_id = existing["id"]
+            await db.execute(
+                """
+                UPDATE applications
+                SET cover_letter = ?, cover_tone = ?, tailored_at = CURRENT_TIMESTAMP
+                WHERE id = ?
+                """,
+                (result["cover_letter"], result["tone_used"], app_id),
+            )
+        else:
+            cursor = await db.execute(
+                """
+                INSERT INTO applications (job_id, cover_letter, cover_tone)
+                VALUES (?, ?, ?)
+                """,
+                (job_id, result["cover_letter"], result["tone_used"]),
+            )
+            app_id = cursor.lastrowid
+
+        await db.commit()
+        logger.info(f"Cover letter generated for job {job_id}")
+
+        return GenerateCoverResponse(
+            application_id=app_id,
+            job_id=job_id,
+            cover_letter=result["cover_letter"],
+            tone_used=result["tone_used"],
         )
 
     @post("/")
@@ -100,10 +247,20 @@ class ApplicationController(Controller):
 
         cursor = await db.execute(
             """
-            INSERT INTO applications (job_id, resume_version, cover_letter)
-            VALUES (?, ?, ?)
+            INSERT INTO applications (
+                job_id, resume_version, cover_letter,
+                tailored_resume, resume_highlights, cover_tone
+            )
+            VALUES (?, ?, ?, ?, ?, ?)
             """,
-            (data.job_id, data.resume_version, data.cover_letter),
+            (
+                data.job_id,
+                data.resume_version,
+                data.cover_letter,
+                data.tailored_resume,
+                data.resume_highlights,
+                data.cover_tone,
+            ),
         )
         await db.commit()
 
@@ -124,6 +281,15 @@ class ApplicationController(Controller):
         if data.cover_letter is not None:
             updates.append("cover_letter = ?")
             params.append(data.cover_letter)
+        if data.tailored_resume is not None:
+            updates.append("tailored_resume = ?")
+            params.append(data.tailored_resume)
+        if data.resume_highlights is not None:
+            updates.append("resume_highlights = ?")
+            params.append(data.resume_highlights)
+        if data.cover_tone is not None:
+            updates.append("cover_tone = ?")
+            params.append(data.cover_tone)
         if data.applied_at is not None:
             updates.append("applied_at = ?")
             params.append(data.applied_at.isoformat())
@@ -142,3 +308,24 @@ class ApplicationController(Controller):
         await db.commit()
 
         return await self.get_application(db, application_id)
+
+
+class DocumentController(Controller):
+    """Controller for document management endpoints."""
+
+    path = "/api/documents"
+
+    @get("/")
+    async def list_documents(self) -> DocumentList:
+        """List all available profile documents.
+
+        Returns metadata about documents in backend/profile/ directory.
+        """
+        resume_service = ResumeService()
+        docs = resume_service.list_documents()
+        has_resume = resume_service.has_resume()
+
+        return DocumentList(
+            documents=[DocumentInfo(**doc) for doc in docs],
+            has_resume=has_resume,
+        )

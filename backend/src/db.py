@@ -153,20 +153,42 @@ class Database:
         if self._connection is None:
             return
 
-        # Check if dedup_key column exists
+        # Check if dedup_key column exists in jobs table
         cursor = await self._connection.execute("PRAGMA table_info(jobs)")
-        columns = {row[1] for row in await cursor.fetchall()}
+        job_columns = {row[1] for row in await cursor.fetchall()}
 
-        if "dedup_key" not in columns:
+        if "dedup_key" not in job_columns:
             logger.info("Migrating: adding dedup_key column")
             await self._connection.execute(
                 "ALTER TABLE jobs ADD COLUMN dedup_key TEXT"
             )
 
-        if "duplicate_of" not in columns:
+        if "duplicate_of" not in job_columns:
             logger.info("Migrating: adding duplicate_of column")
             await self._connection.execute(
                 "ALTER TABLE jobs ADD COLUMN duplicate_of TEXT REFERENCES jobs(id)"
+            )
+
+        # Check for new application columns (Phase 4: resume/cover letter)
+        cursor = await self._connection.execute("PRAGMA table_info(applications)")
+        app_columns = {row[1] for row in await cursor.fetchall()}
+
+        if "tailored_resume" not in app_columns:
+            logger.info("Migrating: adding tailored_resume column to applications")
+            await self._connection.execute(
+                "ALTER TABLE applications ADD COLUMN tailored_resume TEXT"
+            )
+
+        if "resume_highlights" not in app_columns:
+            logger.info("Migrating: adding resume_highlights column to applications")
+            await self._connection.execute(
+                "ALTER TABLE applications ADD COLUMN resume_highlights TEXT"
+            )
+
+        if "cover_tone" not in app_columns:
+            logger.info("Migrating: adding cover_tone column to applications")
+            await self._connection.execute(
+                "ALTER TABLE applications ADD COLUMN cover_tone TEXT"
             )
 
     async def disconnect(self) -> None:

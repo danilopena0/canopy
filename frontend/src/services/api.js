@@ -106,15 +106,20 @@ export const updateApplication = (id, data) =>
     body: JSON.stringify(data),
   })
 
-export const tailorResume = (jobId) =>
+export const tailorResume = (jobId, options = {}) =>
   request(`/applications/${jobId}/tailor`, {
     method: 'POST',
+    body: JSON.stringify(options),
   })
 
-export const generateCoverLetter = (jobId) =>
+export const generateCoverLetter = (jobId, options = {}) =>
   request(`/applications/${jobId}/cover`, {
     method: 'POST',
+    body: JSON.stringify(options),
   })
+
+// Documents API
+export const getDocuments = () => request('/documents')
 
 // Profile API
 export const getProfile = () => request('/profile')

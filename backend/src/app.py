@@ -15,6 +15,7 @@ from .db import close_database, get_database
 from .models import HealthResponse
 from .routes import (
     ApplicationController,
+    DocumentController,
     JobController,
     ProfileController,
     SearchController,
@@ -84,6 +85,7 @@ app = Litestar(
         SearchController,
         ApplicationController,
         ProfileController,
+        DocumentController,
     ],
     lifespan=[lifespan],
     cors_config=cors_config,

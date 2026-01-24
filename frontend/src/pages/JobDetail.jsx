@@ -1,20 +1,44 @@
 import { useState, useEffect } from 'react'
-import { useParams, useNavigate, Link } from 'react-router-dom'
-import { getJob, updateJob, tailorResume, generateCoverLetter } from '../services/api'
+import { useParams, Link } from 'react-router-dom'
+import { getJob, updateJob, tailorResume, generateCoverLetter, getDocuments, getApplications } from '../services/api'
 
 const STATUS_OPTIONS = ['new', 'reviewed', 'applied', 'rejected', 'archived']
+const TONE_OPTIONS = [
+  { value: 'professional', label: 'Professional' },
+  { value: 'enthusiastic', label: 'Enthusiastic' },
+  { value: 'casual', label: 'Casual' },
+]
 
 export default function JobDetail() {
   const { id } = useParams()
-  const navigate = useNavigate()
   const [job, setJob] = useState(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState(null)
   const [notes, setNotes] = useState('')
 
+  // Document availability
+  const [hasResume, setHasResume] = useState(false)
+
+  // Generation state
+  const [generatingResume, setGeneratingResume] = useState(false)
+  const [generatingCover, setGeneratingCover] = useState(false)
+  const [selectedTone, setSelectedTone] = useState('professional')
+
+  // Generated content
+  const [tailoredResume, setTailoredResume] = useState(null)
+  const [resumeHighlights, setResumeHighlights] = useState([])
+  const [coverLetter, setCoverLetter] = useState(null)
+  const [coverTone, setCoverTone] = useState(null)
+
+  // Copy feedback
+  const [copiedResume, setCopiedResume] = useState(false)
+  const [copiedCover, setCopiedCover] = useState(false)
+
   useEffect(() => {
     loadJob()
+    checkDocuments()
+    loadApplication()
   }, [id])
 
   async function loadJob() {
@@ -28,6 +52,40 @@ export default function JobDetail() {
       setError(err.message)
     } finally {
       setLoading(false)
+    }
+  }
+
+  async function checkDocuments() {
+    try {
+      const docs = await getDocuments()
+      setHasResume(docs.has_resume)
+    } catch (err) {
+      console.error('Failed to check documents:', err)
+    }
+  }
+
+  async function loadApplication() {
+    try {
+      const apps = await getApplications(id)
+      if (apps.length > 0) {
+        const app = apps[0]
+        if (app.tailored_resume) {
+          setTailoredResume(app.tailored_resume)
+          if (app.resume_highlights) {
+            try {
+              setResumeHighlights(JSON.parse(app.resume_highlights))
+            } catch {
+              setResumeHighlights([])
+            }
+          }
+        }
+        if (app.cover_letter) {
+          setCoverLetter(app.cover_letter)
+          setCoverTone(app.cover_tone)
+        }
+      }
+    } catch (err) {
+      console.error('Failed to load application:', err)
     }
   }
 
@@ -56,20 +114,51 @@ export default function JobDetail() {
   }
 
   async function handleTailorResume() {
+    if (!hasResume) {
+      setError('Please create backend/profile/resume.md with your master resume first.')
+      return
+    }
+
+    setGeneratingResume(true)
+    setError(null)
     try {
       const result = await tailorResume(id)
-      alert(result.message)
+      setTailoredResume(result.tailored_resume)
+      setResumeHighlights(result.highlights || [])
     } catch (err) {
-      alert(err.message)
+      setError(err.message)
+    } finally {
+      setGeneratingResume(false)
     }
   }
 
   async function handleGenerateCover() {
+    setGeneratingCover(true)
+    setError(null)
     try {
-      const result = await generateCoverLetter(id)
-      alert(result.message)
+      const result = await generateCoverLetter(id, { tone: selectedTone })
+      setCoverLetter(result.cover_letter)
+      setCoverTone(result.tone_used)
     } catch (err) {
-      alert(err.message)
+      setError(err.message)
+    } finally {
+      setGeneratingCover(false)
+    }
+  }
+
+  function handleCopyResume() {
+    if (tailoredResume) {
+      navigator.clipboard.writeText(tailoredResume)
+      setCopiedResume(true)
+      setTimeout(() => setCopiedResume(false), 2000)
+    }
+  }
+
+  function handleCopyCover() {
+    if (coverLetter) {
+      navigator.clipboard.writeText(coverLetter)
+      setCopiedCover(true)
+      setTimeout(() => setCopiedCover(false), 2000)
     }
   }
 
@@ -77,7 +166,7 @@ export default function JobDetail() {
     return <div className="p-8 text-center text-gray-500">Loading...</div>
   }
 
-  if (error) {
+  if (error && !job) {
     return (
       <div className="p-8">
         <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-red-700">
@@ -99,6 +188,12 @@ export default function JobDetail() {
       <Link to="/jobs" className="text-blue-600 hover:text-blue-800 text-sm">
         &larr; Back to jobs
       </Link>
+
+      {error && (
+        <div className="mt-4 bg-red-50 border border-red-200 rounded-lg p-4 text-red-700">
+          {error}
+        </div>
+      )}
 
       <div className="mt-4 bg-white rounded-lg shadow p-6">
         <div className="flex items-start justify-between">
@@ -145,17 +240,32 @@ export default function JobDetail() {
 
           <button
             onClick={handleTailorResume}
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+            disabled={generatingResume}
+            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
           >
-            Tailor Resume
+            {generatingResume ? 'Tailoring...' : 'Tailor Resume'}
           </button>
 
-          <button
-            onClick={handleGenerateCover}
-            className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
-          >
-            Generate Cover Letter
-          </button>
+          <div className="flex items-center gap-2">
+            <select
+              value={selectedTone}
+              onChange={(e) => setSelectedTone(e.target.value)}
+              className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
+            >
+              {TONE_OPTIONS.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+            <button
+              onClick={handleGenerateCover}
+              disabled={generatingCover}
+              className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50"
+            >
+              {generatingCover ? 'Generating...' : 'Generate Cover Letter'}
+            </button>
+          </div>
 
           {job.url && (
             <a
@@ -168,7 +278,67 @@ export default function JobDetail() {
             </a>
           )}
         </div>
+
+        {!hasResume && (
+          <p className="mt-4 text-sm text-amber-600">
+            Note: Create backend/profile/resume.md with your master resume to enable resume tailoring.
+          </p>
+        )}
       </div>
+
+      {/* Tailored Resume */}
+      {tailoredResume && (
+        <div className="mt-6 bg-white rounded-lg shadow p-6">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-medium text-gray-900">Tailored Resume</h2>
+            <button
+              onClick={handleCopyResume}
+              className="text-sm text-blue-600 hover:text-blue-800"
+            >
+              {copiedResume ? 'Copied!' : 'Copy to Clipboard'}
+            </button>
+          </div>
+
+          {resumeHighlights.length > 0 && (
+            <div className="mb-4 p-4 bg-blue-50 rounded-lg">
+              <p className="text-sm font-medium text-blue-900 mb-2">Key Highlights for This Role:</p>
+              <ul className="list-disc list-inside text-sm text-blue-800 space-y-1">
+                {resumeHighlights.map((highlight, i) => (
+                  <li key={i}>{highlight}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          <div className="prose max-w-none text-gray-700 whitespace-pre-wrap bg-gray-50 p-4 rounded-lg text-sm font-mono">
+            {tailoredResume}
+          </div>
+        </div>
+      )}
+
+      {/* Cover Letter */}
+      {coverLetter && (
+        <div className="mt-6 bg-white rounded-lg shadow p-6">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h2 className="text-lg font-medium text-gray-900">Cover Letter</h2>
+              {coverTone && (
+                <span className="text-sm text-gray-500">Tone: {coverTone}</span>
+              )}
+            </div>
+            <button
+              onClick={handleCopyCover}
+              className="text-sm text-blue-600 hover:text-blue-800"
+            >
+              {copiedCover ? 'Copied!' : 'Copy to Clipboard'}
+            </button>
+          </div>
+
+          <div className="prose max-w-none text-gray-700 whitespace-pre-wrap">
+            {coverLetter}
+          </div>
+        </div>
+      )}
 
       {/* Fit Rationale */}
       {job.fit_rationale && (
