@@ -52,7 +52,7 @@ class PerplexityProvider(LLMProvider):
     """Perplexity API implementation using httpx."""
 
     API_URL = "https://api.perplexity.ai/chat/completions"
-    DEFAULT_MODEL = "llama-3.1-sonar-small-128k-online"
+    DEFAULT_MODEL = "sonar"
 
     def __init__(self, api_key: str, model: str | None = None):
         self.api_key = api_key
