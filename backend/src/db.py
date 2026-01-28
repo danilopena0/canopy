@@ -71,9 +71,13 @@ CREATE INDEX IF NOT EXISTS idx_jobs_status ON jobs(status);
 CREATE INDEX IF NOT EXISTS idx_jobs_source ON jobs(source);
 CREATE INDEX IF NOT EXISTS idx_jobs_company ON jobs(company);
 CREATE INDEX IF NOT EXISTS idx_jobs_scraped_at ON jobs(scraped_at);
+CREATE INDEX IF NOT EXISTS idx_applications_job_id ON applications(job_id);
+"""
+
+# Indexes that depend on migrated columns (run after migrations)
+DEDUP_INDEXES_SQL = """
 CREATE INDEX IF NOT EXISTS idx_jobs_dedup_key ON jobs(dedup_key);
 CREATE INDEX IF NOT EXISTS idx_jobs_duplicate_of ON jobs(duplicate_of);
-CREATE INDEX IF NOT EXISTS idx_applications_job_id ON applications(job_id);
 """
 
 # Full-text search virtual table
@@ -144,6 +148,9 @@ class Database:
 
         # Run migrations for existing databases
         await self._run_migrations()
+
+        # Create indexes that depend on migrated columns
+        await self._connection.executescript(DEDUP_INDEXES_SQL)
 
         await self._connection.commit()
         logger.info("Database schema initialized")
