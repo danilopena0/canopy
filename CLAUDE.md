@@ -38,9 +38,11 @@ Frontend (React + Vite)  →  Backend API (Litestar)  →  SQLite + sqlite-vec
 | `backend/src/db.py` | Database connection, schema, helpers |
 | `backend/src/models.py` | Pydantic request/response models |
 | `backend/src/services/llm.py` | LLM provider abstraction (Perplexity/Claude) |
+| `backend/src/services/scorer.py` | Job fit scoring service with LLM |
+| `backend/src/services/embeddings.py` | Vector embeddings with sentence-transformers |
 | `backend/src/services/resume.py` | Resume tailoring service with LLM |
 | `backend/src/services/cover.py` | Cover letter generation service with LLM |
-| `backend/src/routes/jobs.py` | Job CRUD and search endpoints |
+| `backend/src/routes/jobs.py` | Job CRUD, search, scoring, and embedding endpoints |
 | `backend/src/routes/applications.py` | Application tracking, tailor/cover endpoints |
 | `backend/src/routes/search.py` | Batch search endpoint, runs scrapers |
 | `backend/src/scrapers/base.py` | Abstract base class for scrapers |
@@ -78,11 +80,21 @@ npm run lint     # ESLint
 
 ## Database Tables
 
-- `jobs` - Scraped job postings with metadata
+- `jobs` - Scraped job postings with metadata, fit scores, and embeddings
 - `jobs_fts` - FTS5 virtual table for full-text search
 - `search_runs` - Batch search history
 - `applications` - Job application tracking
 - `company_sources` - Configured career page sources
+
+### Jobs Table Key Columns
+
+| Column | Type | Purpose |
+|--------|------|---------|
+| `fit_score` | REAL | LLM-generated job fit score (0-100) |
+| `fit_rationale` | TEXT | Explanation of the fit score |
+| `embedding` | BLOB | Vector embedding for semantic search (384 dims) |
+| `dedup_key` | TEXT | Normalized key for deduplication |
+| `duplicate_of` | TEXT | Reference to canonical job if duplicate |
 
 ## LLM Provider
 
@@ -117,14 +129,18 @@ Not started:
 - Company career page scrapers (generic)
 - Deduplication logic (beyond URL-based job IDs)
 
-**Phase 3 TODO**: Scoring & Ranking
-- User profile setup (skills, preferences, deal-breakers)
-- LLM-based job fit scoring
-- Fit rationale generation
-- Job ranking by score
-- Vector embeddings for semantic search
+**Phase 3 Complete**: Scoring & Ranking (as of 2026-01-29)
 
-**Phase 4 In Progress**: Application Support (as of 2026-01-24)
+Completed:
+- User profile setup (`backend/data/profile.json`) with skills, preferences, deal-breakers
+- LLM-based job fit scoring (`services/scorer.py`)
+- Fit rationale generation with matching/missing skills
+- Job filtering by minimum score (`GET /api/jobs/?min_score=50`)
+- Vector embeddings for semantic search (`services/embeddings.py`)
+- Semantic search endpoint (`GET /api/jobs/semantic-search?q=...`)
+- Similar jobs endpoint (`GET /api/jobs/similar/{job_id}`)
+
+**Phase 4 Complete**: Application Support (as of 2026-01-24)
 
 Completed:
 - Resume tailoring with LLM (`backend/src/services/resume.py`)
@@ -255,9 +271,90 @@ python scripts/get_job.py <job_id>      # Get full job details
 
 Claude Code will read your files and generate content directly in the conversation.
 
+## Job Scoring
+
+LLM-based scoring evaluates how well each job matches your profile using a 100-point rubric:
+- Title match (25 pts)
+- Skills overlap (35 pts)
+- Location/work type (15 pts)
+- Salary fit (10 pts)
+- Experience level (10 pts)
+- Industry preference (5 pts bonus)
+
+If a dealbreaker is triggered, the score is automatically set to 0.
+
+### Profile Setup
+
+Create `backend/data/profile.json` with your preferences:
+
+```json
+{
+  "name": "Your Name",
+  "target_titles": ["Data Scientist", "ML Engineer", "AI Engineer"],
+  "skills": {
+    "languages": ["Python", "SQL", "R"],
+    "ml_tools": ["TensorFlow", "PyTorch", "scikit-learn"],
+    "platforms": ["AWS", "GCP", "Databricks"],
+    "other": ["NLP", "Computer Vision", "MLOps"]
+  },
+  "experience_years": 5,
+  "locations": ["San Antonio, TX", "Austin, TX", "Remote"],
+  "work_types": ["remote", "hybrid"],
+  "industries": ["Tech", "Finance", "Healthcare"],
+  "min_salary": 120000,
+  "dealbreakers": ["clearance required", "on-call 24/7"]
+}
+```
+
+### Scoring API
+
+```bash
+# Score a single job
+curl -X POST "http://localhost:8000/api/jobs/{job_id}/score"
+
+# Score multiple jobs
+curl -X POST "http://localhost:8000/api/jobs/score-batch" \
+  -H "Content-Type: application/json" \
+  -d '{"job_ids": ["abc123", "def456"]}'
+
+# List jobs with minimum score
+curl "http://localhost:8000/api/jobs/?min_score=70"
+```
+
+## Vector Embeddings & Semantic Search
+
+Jobs are embedded using the `all-MiniLM-L6-v2` model (384 dimensions) for semantic similarity search. The model is ~90MB and downloaded on first use.
+
+### Embedding API
+
+```bash
+# Embed a single job
+curl -X POST "http://localhost:8000/api/jobs/{job_id}/embed"
+
+# Embed all jobs without embeddings (backfill)
+curl -X POST "http://localhost:8000/api/jobs/embed-all"
+
+# Find similar jobs
+curl "http://localhost:8000/api/jobs/similar/{job_id}?limit=10"
+
+# Semantic search (search by meaning, not keywords)
+curl "http://localhost:8000/api/jobs/semantic-search?q=machine+learning+NLP&limit=20"
+```
+
+### Semantic vs Full-Text Search
+
+| Feature | Full-Text (`/search`) | Semantic (`/semantic-search`) |
+|---------|----------------------|------------------------------|
+| Query | Keywords must match | Meaning-based matching |
+| Example | "python developer" | "coding in snake language" |
+| Speed | Fast (FTS5 index) | Slower (computes similarity) |
+| Setup | Automatic | Requires `embed-all` first |
+
 ## Notes
 
 - Profile data stored in `backend/data/profile.json`
 - User's resume/docs go in `backend/profile/` (gitignored)
 - Job IDs are SHA256 hashes of URLs (first 16 chars)
 - All scrapers should respect 2+ second delays
+- First embedding call downloads ~90MB model (cached in `~/.cache/torch/`)
+- Scoring requires LLM API key; embeddings are fully local (no API needed)

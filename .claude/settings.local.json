@@ -10,7 +10,8 @@
       "Bash(python3:*)",
       "WebFetch(domain:scrapfly.io)",
       "Bash(npm run build:*)",
-      "Bash(/mnt/c/Users/ukule/PycharmProjects/canopy/backend/venv/bin/python:*)"
+      "Bash(/mnt/c/Users/ukule/PycharmProjects/canopy/backend/venv/bin/python:*)",
+      "Bash(ruff check:*)"
     ]
   }
 }

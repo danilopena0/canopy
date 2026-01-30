@@ -1,12 +1,12 @@
 """Database connection and schema management."""
 
 import logging
+from collections.abc import AsyncGenerator
 from pathlib import Path
-from typing import AsyncGenerator
 
 import aiosqlite
 
-from .config import Settings, get_settings
+from .config import get_settings
 
 logger = logging.getLogger(__name__)
 
@@ -196,6 +196,13 @@ class Database:
             logger.info("Migrating: adding cover_tone column to applications")
             await self._connection.execute(
                 "ALTER TABLE applications ADD COLUMN cover_tone TEXT"
+            )
+
+        # Check for embedding column (Phase 3: vector embeddings)
+        if "embedding" not in job_columns:
+            logger.info("Migrating: adding embedding column to jobs")
+            await self._connection.execute(
+                "ALTER TABLE jobs ADD COLUMN embedding BLOB"
             )
 
     async def disconnect(self) -> None:

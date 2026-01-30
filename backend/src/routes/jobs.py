@@ -1,24 +1,34 @@
 """Job routes for CRUD operations and search."""
 
 import hashlib
+import json
+import logging
 from typing import Annotated
 
 from litestar import Controller, delete, get, patch, post
 from litestar.di import Provide
+from litestar.exceptions import NotFoundException
 from litestar.params import Parameter
 
 from ..db import Database, db_dependency
 from ..models import (
+    EmbedBatchResponse,
+    EmbedJobResponse,
     Job,
     JobCreate,
-    JobFilterParams,
     JobList,
     JobStatus,
     JobUpdate,
     MessageResponse,
-    SearchParams,
+    ScoreBatchRequest,
+    ScoreBatchResponse,
+    ScoreJobResponse,
     WorkType,
 )
+from ..services.embeddings import EmbeddingService, cosine_similarity
+from ..services.scorer import ScorerService
+
+logger = logging.getLogger(__name__)
 
 
 def generate_job_id(url: str) -> str:
@@ -90,8 +100,6 @@ class JobController(Controller):
         """Get a single job by ID."""
         row = await db.fetchone("SELECT * FROM jobs WHERE id = ?", (job_id,))
         if not row:
-            from litestar.exceptions import NotFoundException
-
             raise NotFoundException(f"Job not found: {job_id}")
         return Job(**dict(row))
 
@@ -153,7 +161,6 @@ class JobController(Controller):
             # No updates, just return the current job
             row = await db.fetchone("SELECT * FROM jobs WHERE id = ?", (job_id,))
             if not row:
-                from litestar.exceptions import NotFoundException
                 raise NotFoundException(f"Job not found: {job_id}")
             return Job(**dict(row))
 
@@ -166,7 +173,6 @@ class JobController(Controller):
 
         row = await db.fetchone("SELECT * FROM jobs WHERE id = ?", (job_id,))
         if not row:
-            from litestar.exceptions import NotFoundException
             raise NotFoundException(f"Job not found: {job_id}")
         return Job(**dict(row))
 
@@ -207,3 +213,231 @@ class JobController(Controller):
 
         items = [Job(**dict(row)) for row in rows]
         return JobList(items=items, total=total, page=page, page_size=page_size)
+
+    # --- Scoring Endpoints ---
+
+    @post("/{job_id:str}/score")
+    async def score_job(self, db: Database, job_id: str) -> ScoreJobResponse:
+        """Score a single job against the user's profile."""
+        row = await db.fetchone("SELECT * FROM jobs WHERE id = ?", (job_id,))
+        if not row:
+            raise NotFoundException(f"Job not found: {job_id}")
+
+        job = dict(row)
+        scorer = ScorerService()
+
+        try:
+            result = await scorer.score_job(job)
+        finally:
+            await scorer.close()
+
+        # Update job with score
+        await db.execute(
+            "UPDATE jobs SET fit_score = ?, fit_rationale = ? WHERE id = ?",
+            (result["score"], result["rationale"], job_id),
+        )
+        await db.commit()
+
+        return ScoreJobResponse(
+            job_id=job_id,
+            score=result["score"],
+            rationale=result["rationale"],
+            matching_skills=result["matching_skills"],
+            missing_skills=result["missing_skills"],
+            dealbreaker_triggered=result["dealbreaker_triggered"],
+        )
+
+    @post("/score-batch")
+    async def score_batch(
+        self, db: Database, data: ScoreBatchRequest
+    ) -> ScoreBatchResponse:
+        """Score multiple jobs against the user's profile."""
+        results = []
+        scorer = ScorerService()
+
+        try:
+            profile = scorer.load_profile()
+
+            for job_id in data.job_ids:
+                row = await db.fetchone("SELECT * FROM jobs WHERE id = ?", (job_id,))
+                if not row:
+                    logger.warning(f"Job not found for scoring: {job_id}")
+                    continue
+
+                job = dict(row)
+                result = await scorer.score_job(job, profile)
+
+                # Update job with score
+                await db.execute(
+                    "UPDATE jobs SET fit_score = ?, fit_rationale = ? WHERE id = ?",
+                    (result["score"], result["rationale"], job_id),
+                )
+
+                results.append(
+                    ScoreJobResponse(
+                        job_id=job_id,
+                        score=result["score"],
+                        rationale=result["rationale"],
+                        matching_skills=result["matching_skills"],
+                        missing_skills=result["missing_skills"],
+                        dealbreaker_triggered=result["dealbreaker_triggered"],
+                    )
+                )
+        finally:
+            await scorer.close()
+
+        await db.commit()
+        return ScoreBatchResponse(scored=len(results), results=results)
+
+    # --- Embedding Endpoints ---
+
+    @post("/{job_id:str}/embed")
+    async def embed_job(self, db: Database, job_id: str) -> EmbedJobResponse:
+        """Generate embedding for a single job."""
+        row = await db.fetchone("SELECT * FROM jobs WHERE id = ?", (job_id,))
+        if not row:
+            raise NotFoundException(f"Job not found: {job_id}")
+
+        job = dict(row)
+        service = EmbeddingService()
+
+        # Generate embedding
+        text = service.job_to_text(job)
+        embedding = service.generate_embedding(text)
+
+        # Store as JSON blob
+        embedding_blob = json.dumps(embedding).encode("utf-8")
+        await db.execute(
+            "UPDATE jobs SET embedding = ? WHERE id = ?",
+            (embedding_blob, job_id),
+        )
+        await db.commit()
+
+        return EmbedJobResponse(job_id=job_id, embedded=True)
+
+    @post("/embed-all")
+    async def embed_all_jobs(self, db: Database) -> EmbedBatchResponse:
+        """Generate embeddings for all jobs without embeddings."""
+        # Get jobs without embeddings
+        rows = await db.fetchall(
+            "SELECT id, title, company, description, requirements FROM jobs WHERE embedding IS NULL"
+        )
+
+        if not rows:
+            return EmbedBatchResponse(total=0, embedded=0, skipped=0)
+
+        service = EmbeddingService()
+        embedded = 0
+        skipped = 0
+
+        for row in rows:
+            job = dict(row)
+            try:
+                text = service.job_to_text(job)
+                if not text.strip():
+                    skipped += 1
+                    continue
+
+                embedding = service.generate_embedding(text)
+                embedding_blob = json.dumps(embedding).encode("utf-8")
+
+                await db.execute(
+                    "UPDATE jobs SET embedding = ? WHERE id = ?",
+                    (embedding_blob, job["id"]),
+                )
+                embedded += 1
+            except Exception as e:
+                logger.error(f"Failed to embed job {job['id']}: {e}")
+                skipped += 1
+
+        await db.commit()
+        return EmbedBatchResponse(total=len(rows), embedded=embedded, skipped=skipped)
+
+    @get("/similar/{job_id:str}")
+    async def find_similar(
+        self,
+        db: Database,
+        job_id: str,
+        limit: Annotated[int, Parameter(query="limit", ge=1, le=50)] = 10,
+    ) -> JobList:
+        """Find jobs similar to a given job using vector similarity."""
+        # Get the source job's embedding
+        row = await db.fetchone(
+            "SELECT embedding FROM jobs WHERE id = ?", (job_id,)
+        )
+        if not row:
+            raise NotFoundException(f"Job not found: {job_id}")
+
+        if not row["embedding"]:
+            raise NotFoundException(
+                f"Job {job_id} has no embedding. Run POST /api/jobs/{job_id}/embed first."
+            )
+
+        source_embedding = json.loads(row["embedding"])
+
+        # Get all other jobs with embeddings
+        rows = await db.fetchall(
+            "SELECT * FROM jobs WHERE id != ? AND embedding IS NOT NULL",
+            (job_id,),
+        )
+
+        # Calculate similarities
+        similarities = []
+        for r in rows:
+            job_dict = dict(r)
+            embedding = json.loads(job_dict["embedding"])
+            similarity = cosine_similarity(source_embedding, embedding)
+            similarities.append((similarity, job_dict))
+
+        # Sort by similarity (highest first) and take top N
+        similarities.sort(key=lambda x: x[0], reverse=True)
+        top_jobs = [job for _, job in similarities[:limit]]
+
+        # Remove embedding from response (too large)
+        items = []
+        for job in top_jobs:
+            job.pop("embedding", None)
+            items.append(Job(**job))
+
+        return JobList(items=items, total=len(items), page=1, page_size=limit)
+
+    @get("/semantic-search")
+    async def semantic_search(
+        self,
+        db: Database,
+        q: Annotated[str, Parameter(query="q", min_length=1)],
+        limit: Annotated[int, Parameter(query="limit", ge=1, le=100)] = 20,
+    ) -> JobList:
+        """Search jobs using semantic similarity to a query string."""
+        service = EmbeddingService()
+
+        # Generate query embedding
+        query_embedding = service.generate_embedding(q)
+
+        # Get all jobs with embeddings
+        rows = await db.fetchall(
+            "SELECT * FROM jobs WHERE embedding IS NOT NULL"
+        )
+
+        if not rows:
+            return JobList(items=[], total=0, page=1, page_size=limit)
+
+        # Calculate similarities
+        similarities = []
+        for r in rows:
+            job_dict = dict(r)
+            embedding = json.loads(job_dict["embedding"])
+            similarity = cosine_similarity(query_embedding, embedding)
+            similarities.append((similarity, job_dict))
+
+        # Sort by similarity (highest first) and take top N
+        similarities.sort(key=lambda x: x[0], reverse=True)
+        top_jobs = [job for _, job in similarities[:limit]]
+
+        # Remove embedding from response
+        items = []
+        for job in top_jobs:
+            job.pop("embedding", None)
+            items.append(Job(**job))
+
+        return JobList(items=items, total=len(items), page=1, page_size=limit)

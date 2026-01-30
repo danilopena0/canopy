@@ -5,7 +5,6 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
-
 # Job status enum
 JobStatus = Literal["new", "reviewed", "applied", "rejected", "archived"]
 
@@ -265,3 +264,55 @@ class MessageResponse(BaseModel):
     """Generic message response."""
 
     message: str
+
+
+# --- Scoring Models ---
+
+
+class ScoreJobResponse(BaseModel):
+    """Response model for job scoring."""
+
+    job_id: str
+    score: float = Field(..., ge=0, le=100)
+    rationale: str
+    matching_skills: list[str]
+    missing_skills: list[str]
+    dealbreaker_triggered: str | None = None
+
+
+class ScoreBatchRequest(BaseModel):
+    """Request model for batch job scoring."""
+
+    job_ids: list[str]
+
+
+class ScoreBatchResponse(BaseModel):
+    """Response model for batch job scoring."""
+
+    scored: int
+    results: list[ScoreJobResponse]
+
+
+# --- Embedding Models ---
+
+
+class EmbedJobResponse(BaseModel):
+    """Response model for job embedding."""
+
+    job_id: str
+    embedded: bool
+
+
+class EmbedBatchResponse(BaseModel):
+    """Response model for batch job embedding."""
+
+    total: int
+    embedded: int
+    skipped: int
+
+
+class SemanticSearchParams(BaseModel):
+    """Parameters for semantic search."""
+
+    q: str = Field(..., min_length=1)
+    limit: int = Field(20, ge=1, le=100)
