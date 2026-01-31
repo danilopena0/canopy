@@ -15,7 +15,8 @@ from ..models import (
     SearchRun,
 )
 from ..scrapers import HEBScraper, IndeedScraper, WellfoundScraper
-from ..utils.dedup import generate_dedup_key, normalize_company, is_similar_title
+from ..services.scorer import ScorerService
+from ..utils.dedup import generate_dedup_key, is_similar_title, normalize_company
 
 logger = logging.getLogger(__name__)
 
@@ -165,6 +166,7 @@ class SearchController(Controller):
         keywords: Annotated[str, Parameter(query="keywords")] = "data scientist",
         sources_param: Annotated[str, Parameter(query="sources")] = "heb,indeed,wellfound",
         max_pages: Annotated[int, Parameter(query="max_pages", ge=1, le=10)] = 3,
+        auto_score: Annotated[bool, Parameter(query="auto_score")] = True,
     ) -> dict:
         """Trigger a batch search across enabled sources.
 
@@ -173,6 +175,7 @@ class SearchController(Controller):
             keywords: Keywords/query for job search. Defaults to "data scientist".
             sources_param: Comma-separated list of sources to scrape (heb, indeed, wellfound).
             max_pages: Max pages to scrape from Indeed (1-10). Defaults to 3.
+            auto_score: Automatically score new jobs against profile. Defaults to True.
 
         Returns:
             Summary of the search run including jobs found and new jobs added.
@@ -180,6 +183,7 @@ class SearchController(Controller):
         start_time = time.time()
         jobs_found = 0
         new_jobs = 0
+        new_job_ids = []  # Track new job IDs for scoring
         sources = [s.strip().lower() for s in sources_param.split(",") if s.strip()]
         errors = []
 
@@ -194,6 +198,7 @@ class SearchController(Controller):
                     jobs_found += 1
                     if await self._save_job(db, job):
                         new_jobs += 1
+                        new_job_ids.append(job.id)
                 await db.commit()
             except Exception as e:
                 logger.error(f"H-E-B scraper error: {e}")
@@ -214,6 +219,7 @@ class SearchController(Controller):
                     jobs_found += 1
                     if await self._save_job(db, job):
                         new_jobs += 1
+                        new_job_ids.append(job.id)
                 await db.commit()
             except Exception as e:
                 logger.error(f"Indeed scraper error: {e}")
@@ -240,10 +246,39 @@ class SearchController(Controller):
                     jobs_found += 1
                     if await self._save_job(db, job):
                         new_jobs += 1
+                        new_job_ids.append(job.id)
                 await db.commit()
             except Exception as e:
                 logger.error(f"Wellfound scraper error: {e}")
                 errors.append(f"wellfound: {str(e)}")
+
+        # Auto-score new jobs if enabled
+        scored_jobs = 0
+        if auto_score and new_job_ids:
+            try:
+                logger.info(f"Auto-scoring {len(new_job_ids)} new jobs...")
+                scorer = ScorerService()
+                try:
+                    profile = scorer.load_profile()
+                    for job_id in new_job_ids:
+                        row = await db.fetchone("SELECT * FROM jobs WHERE id = ?", (job_id,))
+                        if row:
+                            job_dict = dict(row)
+                            result = await scorer.score_job(job_dict, profile)
+                            await db.execute(
+                                "UPDATE jobs SET fit_score = ?, fit_rationale = ? WHERE id = ?",
+                                (result["score"], result["rationale"], job_id),
+                            )
+                            scored_jobs += 1
+                            logger.info(f"Scored {job_dict['title']}: {result['score']}/100")
+                    await db.commit()
+                except FileNotFoundError:
+                    logger.warning("Profile not found, skipping auto-score")
+                finally:
+                    await scorer.close()
+            except Exception as e:
+                logger.error(f"Auto-scoring error: {e}")
+                errors.append(f"scoring: {str(e)}")
 
         duration = time.time() - start_time
 
@@ -258,6 +293,8 @@ class SearchController(Controller):
         await db.commit()
 
         message = f"Search complete. Found {jobs_found} jobs, {new_jobs} new."
+        if scored_jobs:
+            message += f" Scored {scored_jobs} jobs."
         if errors:
             message += f" Errors: {'; '.join(errors)}"
 
@@ -267,6 +304,7 @@ class SearchController(Controller):
             "message": message,
             "jobs_found": jobs_found,
             "new_jobs": new_jobs,
+            "scored_jobs": scored_jobs,
             "sources": sources,
             "duration_seconds": round(duration, 2),
             "errors": errors if errors else None,

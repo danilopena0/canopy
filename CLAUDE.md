@@ -321,6 +321,24 @@ curl -X POST "http://localhost:8000/api/jobs/score-batch" \
 curl "http://localhost:8000/api/jobs/?min_score=70"
 ```
 
+### Auto-Scoring
+
+New jobs are **automatically scored** when scraped (enabled by default). To disable:
+```bash
+curl -X POST "http://localhost:8000/api/search/run?auto_score=false"
+```
+
+### Bulk Scoring Script
+
+Score all existing unscored jobs:
+```bash
+cd backend
+source venv/bin/activate
+python scripts/score_jobs.py           # Score unscored jobs only
+python scripts/score_jobs.py --all     # Re-score all jobs
+python scripts/score_jobs.py --limit 5 # Score only 5 jobs
+```
+
 ## Vector Embeddings & Semantic Search
 
 Jobs are embedded using the `all-MiniLM-L6-v2` model (384 dimensions) for semantic similarity search. The model is ~90MB and downloaded on first use.
