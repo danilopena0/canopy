@@ -285,7 +285,7 @@ If a dealbreaker is triggered, the score is automatically set to 0.
 
 ### Profile Setup
 
-Create `backend/data/profile.json` with your preferences:
+Create `backend/data/profile.json` with your preferences. You can populate this from your resume at `backend/profile/resume.md`:
 
 ```json
 {
@@ -304,6 +304,16 @@ Create `backend/data/profile.json` with your preferences:
   "min_salary": 120000,
   "dealbreakers": ["clearance required", "on-call 24/7"]
 }
+```
+
+**Tip:** Ask Claude Code to update your profile from your resume:
+> "Update backend/data/profile.json based on my resume at backend/profile/resume.md"
+
+### Updating Your Profile
+
+After updating `profile.json`, re-score all jobs to reflect your new preferences:
+```bash
+python scripts/score_jobs.py --all
 ```
 
 ### Scoring API
