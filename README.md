@@ -5,11 +5,12 @@ An intelligent job search and application assistant for data science, ML, and AI
 ## Overview
 
 Canopy helps you:
-- Aggregate job postings from multiple sources
-- Track new listings across searches (see only what's new)
-- Score and rank jobs by fit against your profile
+- Aggregate job postings from multiple sources (Indeed, H-E-B, Wellfound)
+- Track new listings across searches with cross-source deduplication
+- Score and rank jobs by fit against your profile using LLM-based evaluation
+- Search jobs semantically using vector embeddings
 - Tailor resumes to specific job descriptions
-- Generate customized cover letters
+- Generate customized cover letters with tone selection
 
 ## Tech Stack
 
@@ -18,8 +19,9 @@ Canopy helps you:
 | Backend | Litestar (Python async framework) |
 | Frontend | React + Vite + Tailwind CSS |
 | Database | SQLite + sqlite-vec (vector search) + FTS5 |
-| Scraping | crawl4ai |
+| Scraping | crawl4ai + Playwright |
 | LLM | Perplexity API / Claude API |
+| Embeddings | sentence-transformers (all-MiniLM-L6-v2) |
 
 ## Quick Start
 
@@ -87,14 +89,16 @@ canopy/
 │   │   ├── db.py           # Database connection & schema
 │   │   ├── models.py       # Pydantic models
 │   │   ├── routes/         # API route handlers
-│   │   ├── services/       # Business logic
-│   │   └── scrapers/       # Job board scrapers
+│   │   ├── services/       # Business logic (LLM, scoring, embeddings, resume, cover letter)
+│   │   ├── scrapers/       # Job board scrapers
+│   │   └── utils/          # Utilities (deduplication)
 │   ├── tests/
-│   ├── scripts/
-│   └── data/               # SQLite database (gitignored)
+│   ├── scripts/            # CLI utilities (scoring, job lookup)
+│   ├── data/               # Database, profile config, employer lists
+│   └── profile/            # User resume & documents (gitignored)
 ├── frontend/
 │   ├── src/
-│   │   ├── pages/          # React page components
+│   │   ├── pages/          # Dashboard, JobList, JobDetail, Settings
 │   │   ├── components/     # Reusable UI components
 │   │   ├── services/       # API client
 │   │   └── hooks/          # Custom React hooks
@@ -105,29 +109,52 @@ canopy/
 ## API Endpoints
 
 ### Jobs
-- `GET /api/jobs` - List jobs with filters
-- `GET /api/jobs/{id}` - Get job details
-- `PATCH /api/jobs/{id}` - Update job status/notes
-- `GET /api/jobs/search?q=` - Full-text search
+- `GET /api/jobs` - List jobs with filters (status, source, company, min_score, work_type)
+- `GET /api/jobs/{job_id}` - Get job details
+- `POST /api/jobs` - Create a job
+- `PATCH /api/jobs/{job_id}` - Update job status/notes
+- `DELETE /api/jobs/{job_id}` - Delete a job
+- `GET /api/jobs/search` - Full-text search
+
+### Scoring
+- `POST /api/jobs/{job_id}/score` - Score a single job
+- `POST /api/jobs/score-batch` - Score multiple jobs
+
+### Embeddings & Semantic Search
+- `POST /api/jobs/{job_id}/embed` - Generate embedding for a job
+- `POST /api/jobs/embed-all` - Embed all jobs without embeddings
+- `GET /api/jobs/similar/{job_id}` - Find similar jobs by vector similarity
+- `GET /api/jobs/semantic-search` - Search jobs by meaning
 
 ### Search
-- `POST /api/search/run` - Trigger batch search
+- `POST /api/search/run` - Trigger batch search (params: location, keywords, sources, max_pages, auto_score)
 - `GET /api/search/runs` - List past searches
 - `GET /api/search/sources` - List configured sources
 - `POST /api/search/sources` - Add new source
+- `POST /api/search/backfill-dedup` - Backfill deduplication keys
+- `GET /api/search/duplicates` - Find duplicate jobs
 
 ### Applications
+- `GET /api/applications` - List applications
+- `GET /api/applications/{application_id}` - Get application details
+- `POST /api/applications` - Create an application
+- `PATCH /api/applications/{application_id}` - Update an application
 - `POST /api/applications/{job_id}/tailor` - Generate tailored resume
 - `POST /api/applications/{job_id}/cover` - Generate cover letter
-- `GET /api/applications` - List applications
+
+### Documents
+- `GET /api/documents` - List available profile documents
 
 ### Profile
 - `GET /api/profile` - Get user profile
 - `PUT /api/profile` - Update profile
 
+### Health
+- `GET /api/health` - Health check
+
 ## Configuration
 
-Create a `.env` file in the backend directory:
+Create a `.env` file in the backend directory (or copy from `.env.example`):
 
 ```bash
 PERPLEXITY_API_KEY=your_key_here
@@ -137,6 +164,18 @@ DATABASE_PATH=./data/canopy.db
 SCRAPE_DELAY_SECONDS=2
 LOG_LEVEL=INFO
 ```
+
+## Scrapers
+
+| Scraper | Status | Notes |
+|---------|--------|-------|
+| Indeed | Working | Pagination support, salary parsing |
+| H-E-B | Working | Extracts salary info |
+| Wellfound | Working | Startup jobs via Apollo GraphQL |
+| LinkedIn | Stub | Deprioritized due to anti-bot measures |
+| Company | Stub | Generic career page scraper |
+
+New jobs are automatically scored when scraped (disable with `auto_score=false`).
 
 ## Development
 
@@ -165,13 +204,21 @@ cd frontend
 npm run lint
 ```
 
-## Implementation Status
+### Utility Scripts
 
-- [x] Phase 1: Foundation (project setup, DB schema, basic CRUD)
-- [ ] Phase 2: Scraping (crawl4ai integration, job board scrapers)
-- [ ] Phase 3: Intelligence (LLM parsing, embeddings, scoring)
-- [ ] Phase 4: Application Tools (resume tailoring, cover letters)
-- [ ] Phase 5: Polish (full UI, deployment)
+```bash
+cd backend
+source venv/bin/activate
+
+# List recent jobs / get job details
+python scripts/get_job.py --list
+python scripts/get_job.py <job_id>
+
+# Score jobs
+python scripts/score_jobs.py           # Unscored jobs only
+python scripts/score_jobs.py --all     # Re-score all
+python scripts/score_jobs.py --limit 5 # Score a batch
+```
 
 ## License
 
