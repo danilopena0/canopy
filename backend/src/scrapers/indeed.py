@@ -37,7 +37,7 @@ class IndeedScraper(BaseScraper):
         query: str = "data scientist",
         location: str = "San Antonio, TX",
         radius: int = 50,
-        days_ago: int = 7,
+        days_ago: int = 14,
         max_pages: int = 3,
     ):
         """Initialize the Indeed scraper.
@@ -209,6 +209,17 @@ class IndeedScraper(BaseScraper):
                     # Extract basic info from card
                     job_data = self._parse_job_card(card, job_key)
                     if not job_data:
+                        continue
+
+                    # Skip professor roles
+                    if "professor" in job_data["title"].lower():
+                        logger.debug(f"Skipping professor role: {job_data['title']}")
+                        continue
+
+                    # Skip H-E-B jobs (we have a dedicated HEB scraper)
+                    company_lower = job_data["company"].lower()
+                    if "h-e-b" in company_lower or "heb" in company_lower:
+                        logger.debug(f"Skipping HEB job from Indeed: {job_data['title']}")
                         continue
 
                     # Rate limit between job detail fetches

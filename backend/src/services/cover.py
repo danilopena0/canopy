@@ -44,7 +44,7 @@ Please write a compelling cover letter that:
 2. Highlights 2-3 most relevant experiences or accomplishments
 3. Demonstrates understanding of the role and how the candidate can contribute
 4. Ends with a confident call to action
-5. Maintains a {tone} tone throughout
+5. Maintains a professional but with genuine enthusiasm tone throughout
 
 The letter should be approximately 300-400 words.
 
@@ -109,7 +109,6 @@ class CoverLetterService:
         job_description: str,
         requirements: str | None,
         profile: dict[str, Any],
-        tone: CoverLetterTone = "professional",
         template_name: str | None = None,
     ) -> dict[str, Any]:
         """Generate a cover letter for a specific job.
@@ -159,7 +158,6 @@ class CoverLetterService:
             job_description=job_description or "Not provided",
             requirements=requirements or "Not specified",
             template_instruction=template_instruction,
-            tone=tone,
         )
 
         llm = self._get_llm()
@@ -168,7 +166,7 @@ class CoverLetterService:
 
         return {
             "cover_letter": result.get("cover_letter", ""),
-            "tone_used": result.get("tone_used", tone),
+            "tone_used": "professional with enthusiasm",
         }
 
     async def close(self) -> None:

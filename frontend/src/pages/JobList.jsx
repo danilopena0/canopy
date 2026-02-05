@@ -106,7 +106,7 @@ function DuplicateBadge() {
   )
 }
 
-function JobRow({ job }) {
+function JobRow({ job, onArchive }) {
   return (
     <tr className={`hover:bg-gray-50 ${job.duplicate_of ? 'opacity-60' : ''}`}>
       <td className="px-6 py-4">
@@ -140,6 +140,19 @@ function JobRow({ job }) {
       </td>
       <td className="px-6 py-4 text-sm text-gray-500" title={new Date(job.scraped_at).toLocaleString()}>
         {formatRelativeTime(job.scraped_at)}
+      </td>
+      <td className="px-6 py-4">
+        {job.status !== 'archived' && (
+          <button
+            onClick={() => onArchive(job.id)}
+            className="text-gray-400 hover:text-gray-600"
+            title="Archive job"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
+            </svg>
+          </button>
+        )}
       </td>
     </tr>
   )
@@ -220,6 +233,16 @@ export default function JobList() {
       setSortOrder('desc')
     }
     setPage(1)
+  }
+
+  async function handleArchive(jobId) {
+    try {
+      await updateJob(jobId, { status: 'archived' })
+      // Refresh job list
+      loadJobs()
+    } catch (err) {
+      setError(err.message)
+    }
   }
 
   // Filter and sort jobs client-side
@@ -372,11 +395,14 @@ export default function JobList() {
                   currentOrder={sortOrder}
                   onSort={handleSort}
                 />
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Actions
+                </th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
               {sortedJobs.map((job) => (
-                <JobRow key={job.id} job={job} />
+                <JobRow key={job.id} job={job} onArchive={handleArchive} />
               ))}
             </tbody>
           </table>

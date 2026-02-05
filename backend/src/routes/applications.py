@@ -192,7 +192,6 @@ class ApplicationController(Controller):
                 job_description=job.get("description") or "",
                 requirements=job.get("requirements"),
                 profile=profile,
-                tone=data.tone,
                 template_name=data.template_name,
             )
         finally:

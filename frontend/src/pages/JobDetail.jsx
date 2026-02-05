@@ -3,11 +3,6 @@ import { useParams, Link } from 'react-router-dom'
 import { getJob, updateJob, tailorResume, generateCoverLetter, getDocuments, getApplications } from '../services/api'
 
 const STATUS_OPTIONS = ['new', 'reviewed', 'applied', 'rejected', 'archived']
-const TONE_OPTIONS = [
-  { value: 'professional', label: 'Professional' },
-  { value: 'enthusiastic', label: 'Enthusiastic' },
-  { value: 'casual', label: 'Casual' },
-]
 
 export default function JobDetail() {
   const { id } = useParams()
@@ -23,7 +18,6 @@ export default function JobDetail() {
   // Generation state
   const [generatingResume, setGeneratingResume] = useState(false)
   const [generatingCover, setGeneratingCover] = useState(false)
-  const [selectedTone, setSelectedTone] = useState('professional')
 
   // Generated content
   const [tailoredResume, setTailoredResume] = useState(null)
@@ -136,7 +130,7 @@ export default function JobDetail() {
     setGeneratingCover(true)
     setError(null)
     try {
-      const result = await generateCoverLetter(id, { tone: selectedTone })
+      const result = await generateCoverLetter(id, {})
       setCoverLetter(result.cover_letter)
       setCoverTone(result.tone_used)
     } catch (err) {
@@ -246,26 +240,13 @@ export default function JobDetail() {
             {generatingResume ? 'Tailoring...' : 'Tailor Resume'}
           </button>
 
-          <div className="flex items-center gap-2">
-            <select
-              value={selectedTone}
-              onChange={(e) => setSelectedTone(e.target.value)}
-              className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
-            >
-              {TONE_OPTIONS.map((opt) => (
-                <option key={opt.value} value={opt.value}>
-                  {opt.label}
-                </option>
-              ))}
-            </select>
-            <button
-              onClick={handleGenerateCover}
-              disabled={generatingCover}
-              className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50"
-            >
-              {generatingCover ? 'Generating...' : 'Generate Cover Letter'}
-            </button>
-          </div>
+          <button
+            onClick={handleGenerateCover}
+            disabled={generatingCover}
+            className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50"
+          >
+            {generatingCover ? 'Generating...' : 'Generate Cover Letter'}
+          </button>
 
           {job.url && (
             <a
