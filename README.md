@@ -12,6 +12,10 @@ Canopy helps you:
 - Tailor resumes to specific job descriptions
 - Generate customized cover letters with tone selection
 
+## Video Usage
+https://github.com/user-attachments/assets/98ef6f3f-783d-44e2-8bc4-7f432a285188
+
+
 ## Tech Stack
 
 | Layer | Technology |
