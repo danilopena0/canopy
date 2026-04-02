@@ -15,9 +15,10 @@ class Settings(BaseSettings):
     # LLM API Keys
     perplexity_api_key: str = ""
     anthropic_api_key: str = ""
+    groq_api_key: str = ""
 
     # LLM Provider selection
-    llm_provider: Literal["perplexity", "claude"] = "perplexity"
+    llm_provider: Literal["perplexity", "claude", "groq"] = "groq"
 
     # Scraping configuration
     scrape_delay_seconds: float = 2.0

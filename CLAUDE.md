@@ -205,9 +205,10 @@ See `backend/data/ai_employers.md` for full list of 34 San Antonio AI/ML employe
 ## Environment Variables
 
 ```
+GROQ_API_KEY         - Groq API key (default provider — free tier)
 PERPLEXITY_API_KEY   - Perplexity API key
 ANTHROPIC_API_KEY    - Claude API key (backup)
-LLM_PROVIDER         - "perplexity" or "claude"
+LLM_PROVIDER         - "groq" (default), "perplexity", or "claude"
 DATABASE_PATH        - SQLite file path
 SCRAPE_DELAY_SECONDS - Rate limit for scrapers
 LOG_LEVEL            - Logging verbosity

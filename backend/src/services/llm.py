@@ -125,6 +125,70 @@ class PerplexityProvider(LLMProvider):
             self._client = None
 
 
+class GroqProvider(LLMProvider):
+    """Groq API implementation using httpx (OpenAI-compatible endpoint)."""
+
+    API_URL = "https://api.groq.com/openai/v1/chat/completions"
+    DEFAULT_MODEL = "llama-3.3-70b-versatile"
+
+    def __init__(self, api_key: str, model: str | None = None):
+        self.api_key = api_key
+        self.model = model or self.DEFAULT_MODEL
+        self._client: httpx.AsyncClient | None = None
+
+    async def _get_client(self) -> httpx.AsyncClient:
+        if self._client is None:
+            self._client = httpx.AsyncClient(
+                headers={
+                    "Authorization": f"Bearer {self.api_key}",
+                    "Content-Type": "application/json",
+                },
+                timeout=60.0,
+            )
+        return self._client
+
+    async def _make_request(self, prompt: str, system: str | None = None) -> str:
+        client = await self._get_client()
+
+        messages = []
+        if system:
+            messages.append({"role": "system", "content": system})
+        messages.append({"role": "user", "content": prompt})
+
+        payload = {"model": self.model, "messages": messages}
+
+        response = await client.post(self.API_URL, json=payload)
+        response.raise_for_status()
+
+        data = response.json()
+        return data["choices"][0]["message"]["content"]
+
+    async def complete(self, prompt: str, system: str | None = None) -> str:
+        logger.debug(f"Groq completion request: {prompt[:100]}...")
+        return await self._make_request(prompt, system)
+
+    async def complete_json(
+        self, prompt: str, system: str | None = None
+    ) -> dict[str, Any]:
+        json_system = (system or "") + "\nRespond only with valid JSON."
+        response = await self._make_request(prompt, json_system.strip())
+
+        response = response.strip()
+        if response.startswith("```json"):
+            response = response[7:]
+        if response.startswith("```"):
+            response = response[3:]
+        if response.endswith("```"):
+            response = response[:-3]
+
+        return json.loads(response.strip())
+
+    async def close(self) -> None:
+        if self._client:
+            await self._client.aclose()
+            self._client = None
+
+
 class ClaudeProvider(LLMProvider):
     """Claude API implementation using the anthropic SDK."""
 
@@ -196,6 +260,11 @@ def get_llm_provider(settings: Settings | None = None) -> LLMProvider:
     """
     if settings is None:
         settings = get_settings()
+
+    if settings.llm_provider == "groq":
+        if not settings.groq_api_key:
+            raise ValueError("GROQ_API_KEY is required for Groq provider")
+        return GroqProvider(settings.groq_api_key)
 
     if settings.llm_provider == "claude":
         if not settings.anthropic_api_key:
