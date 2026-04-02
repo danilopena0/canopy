@@ -48,10 +48,11 @@ function StatCard({ title, value, subtitle, loading }) {
 }
 
 const SOURCE_OPTIONS = [
-  { value: 'heb,indeed,wellfound', label: 'All Sources' },
+  { value: 'heb,indeed,wellfound,builtin', label: 'All Sources' },
   { value: 'heb', label: 'H-E-B' },
   { value: 'indeed', label: 'Indeed' },
   { value: 'wellfound', label: 'Wellfound' },
+  { value: 'builtin', label: 'Built In' },
 ]
 
 export default function Dashboard() {

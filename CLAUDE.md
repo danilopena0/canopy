@@ -378,10 +378,65 @@ curl "http://localhost:8000/api/jobs/semantic-search?q=machine+learning+NLP&limi
 | Speed | Fast (FTS5 index) | Slower (computes similarity) |
 | Setup | Automatic | Requires `embed-all` first |
 
+## Job Application Workflow (Claude Code Skills + Agents)
+
+The job application lifecycle is driven by **Claude Code skills** (slash commands) that orchestrate **specialized subagents**.
+
+### Skills (Slash Commands)
+
+| Command | Usage | What it does |
+|---------|-------|--------------|
+| `/ingest-job <url>` | `/ingest-job https://...` | Scrape, parse, store, and score a job URL |
+| `/apply <job_id or url>` | `/apply abc123def456` | Build full application package (parallel agents) |
+| `/interview-prep <job_id or url>` | `/interview-prep abc123` | Deep prep with Mermaid diagrams |
+| `/job-help <url>` | `/job-help https://...` | End-to-end: ingest → apply → interview prep |
+
+### Agents (Subagents)
+
+| Agent | Role | Model |
+|-------|------|-------|
+| `job-ingestor` | Scrape URL → parse → store → score | sonnet |
+| `resume-tailor` | Tailor master resume to specific JD | opus |
+| `cover-writer` | Write personalized cover letter | opus |
+| `project-matcher` | Match portfolio projects + STAR stories | opus |
+| `interview-coach` | Generate Mermaid diagrams + full prep | opus |
+
+### Output Structure
+
+All generated files go to `backend/profile/applications/{job_id}/`:
+```
+resume_tailored.md      Tailored resume for this specific JD
+cover_letter.md         Cover letter ready to send
+project_highlights.md   Which portfolio projects to bring up + STAR stories
+interview_prep.md       Mermaid diagrams + technical topics + behavioral prep
+```
+
+### Portfolio Reference
+
+`backend/data/projects.md` — catalogue of all portfolio projects at `../` (sibling directories).
+Projects include: banyan, maple, arboretum, ponderosa, foliage, mealing-about, willow, rush/readmission, canopy, promptly, agentic-coding-flywheel, climate projects.
+
+### Underlying Scripts (used by agents via Bash)
+
+| Script | Purpose |
+|--------|---------|
+| `scripts/ingest_job.py <url> --score` | Scrape + parse + store + score a URL |
+| `scripts/get_job.py <job_id>` | Print full job details |
+| `scripts/get_job.py --list` | List recent jobs |
+
+### Mermaid Diagrams
+
+Interview prep files use Mermaid diagrams (fenced ```mermaid blocks). Render in:
+- PyCharm markdown preview (Settings → Plugins → Mermaid)
+- VS Code with Mermaid Preview extension
+
+Diagram types to prefer: `flowchart TD`, `sequenceDiagram`, `graph LR`
+
 ## Notes
 
 - Profile data stored in `backend/data/profile.json`
 - User's resume/docs go in `backend/profile/` (gitignored)
+- Portfolio catalogue at `backend/data/projects.md`
 - Job IDs are SHA256 hashes of URLs (first 16 chars)
 - All scrapers should respect 2+ second delays
 - First embedding call downloads ~90MB model (cached in `~/.cache/torch/`)

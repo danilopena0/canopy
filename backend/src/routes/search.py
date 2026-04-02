@@ -14,7 +14,7 @@ from ..models import (
     CompanySourceCreate,
     SearchRun,
 )
-from ..scrapers import HEBScraper, IndeedScraper, WellfoundScraper
+from ..scrapers import BuiltInScraper, HEBScraper, IndeedScraper, WellfoundScraper
 from ..services.scorer import ScorerService
 from ..utils.dedup import generate_dedup_key, is_similar_title, normalize_company
 
@@ -164,7 +164,7 @@ class SearchController(Controller):
         db: Database,
         location: Annotated[str, Parameter(query="location")] = "San Antonio, TX",
         keywords: Annotated[str, Parameter(query="keywords")] = "data scientist",
-        sources_param: Annotated[str, Parameter(query="sources")] = "heb,indeed,wellfound",
+        sources_param: Annotated[str, Parameter(query="sources")] = "heb,indeed,wellfound,builtin",
         max_pages: Annotated[int, Parameter(query="max_pages", ge=1, le=10)] = 3,
         auto_score: Annotated[bool, Parameter(query="auto_score")] = True,
     ) -> dict:
@@ -173,7 +173,7 @@ class SearchController(Controller):
         Args:
             location: Location to search for jobs. Defaults to San Antonio, TX.
             keywords: Keywords/query for job search. Defaults to "data scientist".
-            sources_param: Comma-separated list of sources to scrape (heb, indeed, wellfound).
+            sources_param: Comma-separated list of sources to scrape (heb, indeed, wellfound, builtin).
             max_pages: Max pages to scrape from Indeed (1-10). Defaults to 3.
             auto_score: Automatically score new jobs against profile. Defaults to True.
 
@@ -251,6 +251,34 @@ class SearchController(Controller):
             except Exception as e:
                 logger.error(f"Wellfound scraper error: {e}")
                 errors.append(f"wellfound: {str(e)}")
+
+        # Run Built In scraper — hybrid/onsite per location_rules
+        if "builtin" in sources:
+            builtin_searches = [
+                (location, "hybrid"),
+                (location, "onsite"),
+            ]
+            # Also search Austin hybrid if location is San Antonio
+            if "san antonio" in location.lower():
+                builtin_searches.append(("Austin, TX", "hybrid"))
+            for bt_location, bt_work_type in builtin_searches:
+                try:
+                    logger.info(f"Running Built In scraper: {bt_location} {bt_work_type}...")
+                    scraper = BuiltInScraper(
+                        keywords=keywords,
+                        location=bt_location,
+                        work_type=bt_work_type,
+                        max_pages=max_pages,
+                    )
+                    async for job in scraper.scrape():
+                        jobs_found += 1
+                        if await self._save_job(db, job):
+                            new_jobs += 1
+                            new_job_ids.append(job.id)
+                    await db.commit()
+                except Exception as e:
+                    logger.error(f"Built In scraper error ({bt_location} {bt_work_type}): {e}")
+                    errors.append(f"builtin-{bt_work_type}: {str(e)}")
 
         # Auto-score new jobs if enabled
         scored_jobs = 0
