@@ -47,8 +47,7 @@ function StatCard({ title, value, subtitle, loading }) {
   )
 }
 
-const SOURCE_OPTIONS = [
-  { value: 'heb,indeed,wellfound,builtin', label: 'All Sources' },
+const SOURCES = [
   { value: 'heb', label: 'H-E-B' },
   { value: 'indeed', label: 'Indeed' },
   { value: 'wellfound', label: 'Wellfound' },
@@ -66,7 +65,27 @@ export default function Dashboard() {
   const [isSearching, setIsSearching] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState(null)
-  const [selectedSource, setSelectedSource] = useState('heb,indeed,wellfound')
+  const [selectedSources, setSelectedSources] = useState(['heb', 'indeed', 'wellfound'])
+
+  function toggleSource(value) {
+    setSelectedSources((prev) => {
+      if (prev.includes(value)) {
+        // Don't allow deselecting the last one
+        if (prev.length === 1) return prev
+        return prev.filter((s) => s !== value)
+      }
+      return [...prev, value]
+    })
+  }
+
+  function toggleAll() {
+    const allValues = SOURCES.map((s) => s.value)
+    setSelectedSources((prev) =>
+      prev.length === allValues.length ? [allValues[0]] : allValues
+    )
+  }
+
+  const allSelected = selectedSources.length === SOURCES.length
 
   useEffect(() => {
     loadDashboard()
@@ -111,7 +130,7 @@ export default function Dashboard() {
     setIsSearching(true)
     setError(null)
     try {
-      const result = await runSearch({ sources: selectedSource })
+      const result = await runSearch({ sources: selectedSources.join(',') })
       await loadDashboard()
       if (result.errors && result.errors.length > 0) {
         setError(`Completed with errors: ${result.errors.join('; ')}`)
@@ -136,23 +155,39 @@ export default function Dashboard() {
             )}
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          <select
-            value={selectedSource}
-            onChange={(e) => setSelectedSource(e.target.value)}
+        <div className="flex items-center gap-2 flex-wrap">
+          <button
+            onClick={toggleAll}
             disabled={isSearching || !isHealthy}
-            className="px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
+            className={`px-3 py-1.5 rounded-full text-sm font-medium border transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+              allSelected
+                ? 'bg-blue-600 text-white border-blue-600'
+                : 'bg-white text-gray-600 border-gray-300 hover:border-blue-400'
+            }`}
           >
-            {SOURCE_OPTIONS.map((opt) => (
-              <option key={opt.value} value={opt.value}>
-                {opt.label}
-              </option>
-            ))}
-          </select>
+            All
+          </button>
+          {SOURCES.map((src) => {
+            const active = selectedSources.includes(src.value)
+            return (
+              <button
+                key={src.value}
+                onClick={() => toggleSource(src.value)}
+                disabled={isSearching || !isHealthy}
+                className={`px-3 py-1.5 rounded-full text-sm font-medium border transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+                  active
+                    ? 'bg-blue-600 text-white border-blue-600'
+                    : 'bg-white text-gray-600 border-gray-300 hover:border-blue-400'
+                }`}
+              >
+                {src.label}
+              </button>
+            )
+          })}
           <button
             onClick={handleRunSearch}
             disabled={isSearching || !isHealthy}
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 ml-1"
           >
             {isSearching && <LoadingSpinner size="sm" light />}
             {isSearching ? 'Searching...' : 'Run Search'}
