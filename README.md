@@ -24,7 +24,7 @@ https://github.com/user-attachments/assets/98ef6f3f-783d-44e2-8bc4-7f432a285188
 | Frontend | React + Vite + Tailwind CSS |
 | Database | SQLite + sqlite-vec (vector search) + FTS5 |
 | Scraping | crawl4ai + Playwright |
-| LLM | Perplexity API / Claude API |
+| LLM | Groq / Perplexity / Claude API |
 | Embeddings | sentence-transformers (all-MiniLM-L6-v2) |
 
 ## Quick Start
@@ -161,9 +161,10 @@ canopy/
 Create a `.env` file in the backend directory (or copy from `.env.example`):
 
 ```bash
+GROQ_API_KEY=your_key_here
 PERPLEXITY_API_KEY=your_key_here
 ANTHROPIC_API_KEY=your_key_here
-LLM_PROVIDER=perplexity
+LLM_PROVIDER=groq
 DATABASE_PATH=./data/canopy.db
 SCRAPE_DELAY_SECONDS=2
 LOG_LEVEL=INFO
