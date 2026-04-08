@@ -59,7 +59,7 @@ async def list_recent_jobs(limit: int = 10) -> None:
 
     print("Recent Jobs:\n")
     for row in rows:
-        print(f"  {row['id'][:8]}  {row['title'][:40]:<40}  {row['company'][:20]}")
+        print(f"  {row['id']}  {row['title'][:40]:<40}  {row['company'][:20]}")
 
     await db.disconnect()
 

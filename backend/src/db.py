@@ -66,12 +66,41 @@ CREATE TABLE IF NOT EXISTS company_sources (
     enabled BOOLEAN DEFAULT TRUE
 );
 
+-- Contacts table: people to network with at target companies
+CREATE TABLE IF NOT EXISTS contacts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    company TEXT NOT NULL,
+    role TEXT,
+    linkedin_url TEXT,
+    met_via TEXT,
+    notes TEXT,
+    last_contact_at TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Networking table: outreach attempts linked to contacts and optionally jobs
+CREATE TABLE IF NOT EXISTS networking (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    contact_id INTEGER REFERENCES contacts(id),
+    job_id TEXT REFERENCES jobs(id),
+    type TEXT NOT NULL CHECK(type IN ('coffee_chat', 'referral_ask', 'intro', 'informational')),
+    status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending', 'sent', 'replied', 'met')),
+    notes TEXT,
+    follow_up_at TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
 -- Indexes for common queries
 CREATE INDEX IF NOT EXISTS idx_jobs_status ON jobs(status);
 CREATE INDEX IF NOT EXISTS idx_jobs_source ON jobs(source);
 CREATE INDEX IF NOT EXISTS idx_jobs_company ON jobs(company);
 CREATE INDEX IF NOT EXISTS idx_jobs_scraped_at ON jobs(scraped_at);
 CREATE INDEX IF NOT EXISTS idx_applications_job_id ON applications(job_id);
+CREATE INDEX IF NOT EXISTS idx_contacts_company ON contacts(company);
+CREATE INDEX IF NOT EXISTS idx_networking_contact_id ON networking(contact_id);
+CREATE INDEX IF NOT EXISTS idx_networking_job_id ON networking(job_id);
+CREATE INDEX IF NOT EXISTS idx_networking_status ON networking(status);
 """
 
 # Indexes that depend on migrated columns (run after migrations)
@@ -204,6 +233,41 @@ class Database:
             await self._connection.execute(
                 "ALTER TABLE jobs ADD COLUMN embedding BLOB"
             )
+
+        # Migrate contacts table
+        cursor = await self._connection.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='contacts'")
+        if not await cursor.fetchone():
+            logger.info("Migrating: creating contacts table")
+            await self._connection.execute("""
+                CREATE TABLE contacts (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    name TEXT NOT NULL,
+                    company TEXT NOT NULL,
+                    role TEXT,
+                    linkedin_url TEXT,
+                    met_via TEXT,
+                    notes TEXT,
+                    last_contact_at TIMESTAMP,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+
+        # Migrate networking table
+        cursor = await self._connection.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='networking'")
+        if not await cursor.fetchone():
+            logger.info("Migrating: creating networking table")
+            await self._connection.execute("""
+                CREATE TABLE networking (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    contact_id INTEGER REFERENCES contacts(id),
+                    job_id TEXT REFERENCES jobs(id),
+                    type TEXT NOT NULL CHECK(type IN ('coffee_chat', 'referral_ask', 'intro', 'informational')),
+                    status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending', 'sent', 'replied', 'met')),
+                    notes TEXT,
+                    follow_up_at TIMESTAMP,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
 
     async def disconnect(self) -> None:
         """Close database connection."""

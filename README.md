@@ -4,13 +4,17 @@ An intelligent job search and application assistant for data science, ML, and AI
 
 ## Overview
 
-Canopy helps you:
-- Aggregate job postings from multiple sources (Indeed, H-E-B, Wellfound)
-- Track new listings across searches with cross-source deduplication
-- Score and rank jobs by fit against your profile using LLM-based evaluation
-- Search jobs semantically using vector embeddings
-- Tailor resumes to specific job descriptions
-- Generate customized cover letters with tone selection
+Canopy is a fully agentic job search assistant. It automates the entire workflow — discovery, triage, networking, applying, and follow-up — through Claude Code slash commands that orchestrate specialized AI agents in parallel.
+
+**Workflow:**
+```
+/hunt       → scrape + rank new jobs
+/triage     → shortlist or pass each one
+/network    → find contacts, draft outreach before applying
+/apply      → parallel agents: resume + cover letter + project highlights
+/pipeline   → see where everything stands
+/follow-up  → draft nudges for anything stale
+```
 
 ## Video Usage
 https://github.com/user-attachments/assets/98ef6f3f-783d-44e2-8bc4-7f432a285188
@@ -108,6 +112,45 @@ canopy/
 │   │   └── hooks/          # Custom React hooks
 │   └── public/
 └── .github/workflows/      # CI pipelines
+```
+
+## Claude Code Skills
+
+All job search workflows run through slash commands in Claude Code. Each command orchestrates one or more specialized agents.
+
+| Command | Args | What it does |
+|---------|------|-------------|
+| `/hunt` | `[--sources] [--keywords] [--min-score]` | Run scrapers, return ranked shortlist |
+| `/triage` | — | Review new high-fit jobs, mark shortlisted or pass |
+| `/network` | `<job_id or company>` | Find contacts, draft LinkedIn outreach |
+| `/ingest-job` | `<url>` | Scrape a specific URL, parse, store, score |
+| `/apply` | `<job_id or url>` | Tailored resume + cover letter + project highlights (parallel) |
+| `/interview-prep` | `<job_id>` | Full prep with Mermaid diagrams |
+| `/job-help` | `<url>` | End-to-end: ingest → apply → interview prep |
+| `/pipeline` | `[--stale]` | Application pipeline status + next actions |
+| `/follow-up` | `[job_id]` | Draft follow-ups for stale applications and networking |
+
+### Finding a Job ID
+
+```bash
+cd backend && source venv/bin/activate
+python scripts/get_job.py --list        # shows full 16-char IDs
+python scripts/get_job.py <job_id>      # full job details
+```
+
+Or run `/hunt` — job IDs are printed next to each result.
+
+### Weekly Rhythm
+
+```
+Monday:   /hunt              → new jobs scraped and ranked
+          /triage            → shortlist the best ones
+
+Tuesday:  /network <job_id>  → find contacts, send outreach before applying
+          /apply <job_id>    → full application package
+
+Friday:   /pipeline          → see where everything stands
+          /follow-up         → draft nudges for anything stale
 ```
 
 ## API Endpoints
@@ -215,14 +258,27 @@ npm run lint
 cd backend
 source venv/bin/activate
 
-# List recent jobs / get job details
-python scripts/get_job.py --list
-python scripts/get_job.py <job_id>
+# Find job IDs
+python scripts/get_job.py --list            # List recent jobs (full IDs shown)
+python scripts/get_job.py <job_id>          # Full details for one job
 
-# Score jobs
-python scripts/score_jobs.py           # Unscored jobs only
-python scripts/score_jobs.py --all     # Re-score all
-python scripts/score_jobs.py --limit 5 # Score a batch
+# Hunt and score
+python scripts/hunt_jobs.py                 # Run scrapers + show top matches
+python scripts/hunt_jobs.py --no-scrape     # Query existing DB only
+python scripts/score_jobs.py                # Score unscored jobs only
+python scripts/score_jobs.py --all          # Re-score all
+
+# Pipeline
+python scripts/pipeline_status.py          # Full pipeline view
+python scripts/pipeline_status.py --stale  # Only items needing follow-up
+
+# Networking
+python scripts/list_contacts.py                        # All contacts
+python scripts/list_contacts.py --company USAA         # Filter by company
+python scripts/add_contact.py "Jane Smith" "USAA" \
+  --role "Sr Data Scientist" \
+  --linkedin "https://linkedin.com/in/..." \
+  --met-via "LinkedIn search"
 ```
 
 ## License
