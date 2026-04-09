@@ -1,0 +1,48 @@
+Given this job and the candidate's portfolio, identify the 3-5 most relevant projects to highlight.
+
+## Job
+Title: Senior Data Scientist
+Company: USAA
+Description:
+Build ML models to detect fraud and improve member experience.
+
+Requirements:
+5+ years experience. Python, SQL, scikit-learn. AWS preferred.
+
+## Portfolio Projects
+## Banyan
+Fraud detection. XGBoost, AWS SageMaker.
+
+## Maple
+NLP classifier. PyTorch.
+
+For each recommended project, provide:
+1. Why it's relevant to THIS specific role
+2. A STAR-format talking point (Situation/Task → Action → Result)
+3. Which specific job requirements it addresses
+4. Technical depth angle — what architectural or design decision to emphasize
+
+Also provide:
+- A "lead project" — the single strongest match to open with
+- 2-3 skill gaps (things the JD emphasizes that the portfolio doesn't clearly demonstrate)
+- How to reframe existing experience to address those gaps
+
+Format as JSON with this structure:
+{
+  "lead_project": "project name",
+  "projects": [
+    {
+      "name": "project name",
+      "relevance": "why it fits this role",
+      "star_story": "STAR format talking point",
+      "addresses_requirements": ["req1", "req2"],
+      "technical_angle": "architectural/design decision to emphasize"
+    }
+  ],
+  "skill_gaps": [
+    {
+      "gap": "skill or experience gap",
+      "reframe": "how to address this in the interview"
+    }
+  ]
+}

@@ -1,0 +1,33 @@
+Generate a professional cover letter for this job application.
+
+## Candidate Profile:
+Name: Alex Rivera
+Target Titles: Data Scientist, ML Engineer
+Years of Experience: 6
+Key Skills: Python, SQL, XGBoost, PyTorch, AWS, NLP, MLOps
+
+## Resume Summary:
+Alex Rivera — Data scientist with 6 years experience.
+
+## Job Details:
+Title: Senior Data Scientist
+Company: USAA
+Location: San Antonio, TX
+Work Type: hybrid
+
+## Job Description:
+Build ML models to detect fraud and improve member experience.
+
+## Requirements:
+5+ years experience. Python, SQL, scikit-learn. AWS preferred.
+
+Please write a compelling cover letter that:
+1. Opens with a hook that shows genuine interest in this specific role/company
+2. Highlights 2-3 most relevant experiences or accomplishments
+3. Demonstrates understanding of the role and how the candidate can contribute
+4. Ends with a confident call to action
+5. Maintains a professional but with genuine enthusiasm tone throughout
+
+The letter should be approximately 300-400 words.
+
+Format response as JSON with keys: "cover_letter" (string) and "tone_used" (string)

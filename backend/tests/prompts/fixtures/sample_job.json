@@ -1,0 +1,11 @@
+{
+  "id": "abc123def456789a",
+  "title": "Senior Data Scientist",
+  "company": "USAA",
+  "location": "San Antonio, TX",
+  "work_type": "hybrid",
+  "salary_min": 130000,
+  "salary_max": 160000,
+  "description": "We are looking for a Senior Data Scientist to join our analytics team. You will build ML models to detect fraud, improve member experience, and drive business decisions. You will work with cross-functional teams and mentor junior data scientists.",
+  "requirements": "5+ years of experience in data science or ML engineering. Proficiency in Python and SQL. Experience with scikit-learn, XGBoost, or similar ML frameworks. Familiarity with AWS or GCP. Strong communication skills."
+}

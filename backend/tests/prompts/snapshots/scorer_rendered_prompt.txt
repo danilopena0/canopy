@@ -1,0 +1,43 @@
+Evaluate how well this job matches the candidate's profile.
+
+## Candidate Profile:
+- Name: Alex Rivera
+- Target Titles: Data Scientist, ML Engineer
+- Years of Experience: 6
+- Skills:
+  - Languages: Python, SQL
+  - ML Tools: XGBoost, PyTorch
+  - Platforms: AWS
+  - Other: NLP, MLOps
+- Preferred Locations: San Antonio, TX, Remote
+- Preferred Work Types: hybrid, remote
+- Preferred Industries: Finance, Tech
+- Minimum Salary: $120,000
+- Dealbreakers: clearance required
+
+## Job Posting:
+- Title: Senior Data Scientist
+- Company: USAA
+- Location: San Antonio, TX
+- Work Type: hybrid
+- Salary Range: $130,000 - $160,000
+- Description: Build ML models to detect fraud and improve member experience.
+- Requirements: 5+ years experience. Python, SQL, scikit-learn. AWS preferred.
+
+## Scoring Rubric (100 points total):
+1. Title Match (25 pts): How well does the job title align with target titles?
+2. Skills Match (35 pts): How many required skills does the candidate have?
+3. Location/Work Type (15 pts): Does location and work arrangement fit preferences?
+4. Salary Fit (10 pts): Is the salary within acceptable range?
+5. Experience Level (10 pts): Does the experience level requirement match?
+6. Industry Preference (5 pts bonus): Is this in a preferred industry?
+
+## Dealbreaker Check:
+If ANY dealbreaker is triggered, score MUST be 0.
+
+Provide your evaluation as JSON with these exact keys:
+- "score": integer 0-100
+- "rationale": string explaining the score (2-3 sentences)
+- "matching_skills": array of skills the candidate has that match requirements
+- "missing_skills": array of required skills the candidate lacks
+- "dealbreaker_triggered": null if none, or string describing which dealbreaker was hit

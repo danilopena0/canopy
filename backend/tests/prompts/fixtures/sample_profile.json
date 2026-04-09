@@ -1,0 +1,16 @@
+{
+  "name": "Alex Rivera",
+  "target_titles": ["Data Scientist", "ML Engineer", "AI Engineer"],
+  "skills": {
+    "languages": ["Python", "SQL", "R"],
+    "ml_tools": ["scikit-learn", "XGBoost", "PyTorch", "TensorFlow"],
+    "platforms": ["AWS", "GCP", "Databricks"],
+    "other": ["NLP", "MLOps", "Docker", "Spark"]
+  },
+  "experience_years": 6,
+  "locations": ["San Antonio, TX", "Austin, TX", "Remote"],
+  "work_types": ["remote", "hybrid"],
+  "industries": ["Finance", "Healthcare", "Tech"],
+  "min_salary": 120000,
+  "dealbreakers": ["clearance required", "on-call 24/7", "must relocate"]
+}

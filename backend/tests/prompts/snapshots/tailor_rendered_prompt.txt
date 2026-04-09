@@ -1,0 +1,33 @@
+Given the following master resume and job description, create a tailored resume that:
+1. Emphasizes skills and experience most relevant to this specific role
+2. Reorders bullet points to prioritize the most relevant accomplishments
+3. Uses keywords from the job description where naturally appropriate
+4. Keeps the core truthful content while optimizing presentation
+
+## Master Resume:
+# Alex Rivera
+
+Data scientist. Python, XGBoost, AWS.
+
+## Additional Experience Documents:
+No additional experience documents provided.
+
+## User Profile:
+Name: Alex Rivera
+Target Titles: Data Scientist, ML Engineer
+Years of Experience: 6
+Key Skills: Python, SQL, XGBoost, PyTorch, AWS, NLP, MLOps
+
+## Job Title: Senior Data Scientist
+## Company: USAA
+## Job Description:
+Build ML models to detect fraud and improve member experience.
+
+## Job Requirements:
+5+ years experience. Python, SQL, scikit-learn. AWS preferred.
+
+Please provide:
+1. The tailored resume in markdown format
+2. A list of 3-5 key highlights you emphasized for this role
+
+Format your response as JSON with keys: "tailored_resume" (string) and "highlights" (array of strings)
