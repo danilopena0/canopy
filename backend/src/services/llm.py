@@ -2,6 +2,7 @@
 
 import json
 import logging
+import re
 from abc import ABC, abstractmethod
 from typing import Any
 
@@ -11,6 +12,40 @@ from anthropic import AsyncAnthropic
 from ..config import Settings, get_settings
 
 logger = logging.getLogger(__name__)
+
+def _clean_json_response(response: str) -> str:
+    """Strip markdown fences and escape illegal control chars inside JSON strings."""
+    response = response.strip()
+    if response.startswith("```json"):
+        response = response[7:]
+    if response.startswith("```"):
+        response = response[3:]
+    if response.endswith("```"):
+        response = response[:-3]
+    response = response.strip()
+
+    # Walk the JSON character-by-character, escaping control chars inside strings.
+    # This handles literal \n/\r/\t and other control chars that LLMs copy verbatim
+    # from scraped page content into JSON string values.
+    _ESCAPE = {"\n": "\\n", "\r": "\\r", "\t": "\\t"}
+    out: list[str] = []
+    in_string = False
+    skip_next = False
+    for ch in response:
+        if skip_next:
+            out.append(ch)
+            skip_next = False
+        elif ch == "\\":
+            out.append(ch)
+            skip_next = True
+        elif ch == '"':
+            in_string = not in_string
+            out.append(ch)
+        elif in_string and ord(ch) < 0x20:
+            out.append(_ESCAPE.get(ch, " "))
+        else:
+            out.append(ch)
+    return "".join(out)
 
 
 class LLMProvider(ABC):
@@ -104,19 +139,7 @@ class PerplexityProvider(LLMProvider):
         """Send a completion request expecting JSON response."""
         json_system = (system or "") + "\nRespond only with valid JSON."
         response = await self._make_request(prompt, json_system.strip())
-
-        # Try to extract JSON from the response
-        response = response.strip()
-
-        # Handle markdown code blocks
-        if response.startswith("```json"):
-            response = response[7:]
-        if response.startswith("```"):
-            response = response[3:]
-        if response.endswith("```"):
-            response = response[:-3]
-
-        return json.loads(response.strip())
+        return json.loads(_clean_json_response(response))
 
     async def close(self) -> None:
         """Close the HTTP client."""
@@ -172,16 +195,7 @@ class GroqProvider(LLMProvider):
     ) -> dict[str, Any]:
         json_system = (system or "") + "\nRespond only with valid JSON."
         response = await self._make_request(prompt, json_system.strip())
-
-        response = response.strip()
-        if response.startswith("```json"):
-            response = response[7:]
-        if response.startswith("```"):
-            response = response[3:]
-        if response.endswith("```"):
-            response = response[:-3]
-
-        return json.loads(response.strip())
+        return json.loads(_clean_json_response(response))
 
     async def close(self) -> None:
         if self._client:
@@ -229,17 +243,8 @@ class ClaudeProvider(LLMProvider):
         }
 
         message = await self._client.messages.create(**kwargs)
-        response = message.content[0].text.strip()
-
-        # Handle markdown code blocks
-        if response.startswith("```json"):
-            response = response[7:]
-        if response.startswith("```"):
-            response = response[3:]
-        if response.endswith("```"):
-            response = response[:-3]
-
-        return json.loads(response.strip())
+        response = message.content[0].text
+        return json.loads(_clean_json_response(response))
 
     async def close(self) -> None:
         """Close the client (no-op for anthropic SDK)."""

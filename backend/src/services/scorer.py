@@ -50,7 +50,10 @@ SCORING_USER_PROMPT = """Evaluate how well this job matches the candidate's prof
 6. Industry Preference (5 pts bonus): Is this in a preferred industry?
 
 ## Dealbreaker Check:
-If ANY dealbreaker is triggered, score MUST be 0.
+If ANY dealbreaker is EXPLICITLY stated in the job posting, score MUST be 0.
+Be LITERAL — only trigger a dealbreaker if the job posting text clearly states the condition.
+Do NOT infer or speculate about future requirements. "Ability to obtain" clearance is NOT the same as "must currently hold" clearance.
+{clearance_note}
 
 Provide your evaluation as JSON with these exact keys:
 - "score": integer 0-100
@@ -150,6 +153,7 @@ class ScorerService:
             industries=", ".join(profile.get("industries", [])) or "Any",
             min_salary=min_salary_str,
             dealbreakers=", ".join(profile.get("dealbreakers", [])) or "None",
+            clearance_note=profile.get("clearance_note", ""),
             job_title=job.get("title", "Unknown"),
             company=job.get("company", "Unknown"),
             location=job.get("location") or "Not specified",

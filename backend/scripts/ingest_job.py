@@ -169,6 +169,7 @@ async def ingest(url: str, score: bool = False, dry_run: bool = False) -> str | 
                     job_data.get("posted_date"),
                 ),
             )
+            await db.commit()
             print(f"Saved to database.")
 
         if score:
@@ -183,6 +184,7 @@ async def ingest(url: str, score: bool = False, dry_run: bool = False) -> str | 
                     "UPDATE jobs SET fit_score = ?, fit_rationale = ? WHERE id = ?",
                     (score_result.get("score"), json.dumps(score_result), job_id),
                 )
+                await db.commit()
                 fit = score_result.get("score", 0)
                 print(f"Fit score: {fit}/100")
                 if score_result.get("dealbreaker_triggered"):
