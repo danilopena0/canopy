@@ -415,7 +415,7 @@ interview_prep.md       Mermaid diagrams + technical topics + behavioral prep
 ### Portfolio Reference
 
 `backend/data/projects.md` — catalogue of all portfolio projects at `../` (sibling directories).
-Projects include: banyan, maple, arboretum, ponderosa, foliage, mealing-about, willow, rush/readmission, canopy, promptly, agentic-coding-flywheel, climate projects.
+Projects include: banyan, maple, arboretum, ponderosa, foliage, mealing-about, willow, rush/readmission, canopy, promptly, agentic-coding-flywheel, cactus, grove, lead-agent, numerous-numbers, sql-playground, climate projects.
 
 ### Underlying Scripts (used by agents via Bash)
 
