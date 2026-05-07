@@ -1,5 +1,6 @@
 """LLM provider abstraction layer supporting Perplexity and Claude."""
 
+import asyncio
 import json
 import logging
 import re
@@ -180,11 +181,18 @@ class GroqProvider(LLMProvider):
 
         payload = {"model": self.model, "messages": messages}
 
-        response = await client.post(self.API_URL, json=payload)
-        response.raise_for_status()
+        for attempt in range(5):
+            response = await client.post(self.API_URL, json=payload)
+            if response.status_code == 429:
+                retry_after = int(response.headers.get("retry-after", 2 ** (attempt + 1)))
+                logger.warning(f"Groq rate limit hit, waiting {retry_after}s (attempt {attempt + 1})")
+                await asyncio.sleep(retry_after)
+                continue
+            response.raise_for_status()
+            data = response.json()
+            return data["choices"][0]["message"]["content"]
 
-        data = response.json()
-        return data["choices"][0]["message"]["content"]
+        response.raise_for_status()
 
     async def complete(self, prompt: str, system: str | None = None) -> str:
         logger.debug(f"Groq completion request: {prompt[:100]}...")

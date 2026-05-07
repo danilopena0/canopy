@@ -11,6 +11,7 @@ import argparse
 import asyncio
 import logging
 import sys
+import time
 from pathlib import Path
 
 # Add backend directory to path so we can import src as a package
@@ -27,19 +28,22 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-async def score_jobs(rescore_all: bool = False, limit: int | None = None):
+async def score_jobs(rescore_all: bool = False, limit: int | None = None, failed_only: bool = False):
     """Score jobs in the database.
 
     Args:
         rescore_all: If True, re-score all jobs. If False, only unscored jobs.
         limit: Maximum number of jobs to score. None for all.
+        failed_only: If True, re-score only jobs with score=0 (rate-limit failures).
     """
     settings = get_settings()
     db = Database(settings.database_path)
     await db.connect()
 
     # Build query
-    if rescore_all:
+    if failed_only:
+        query = "SELECT * FROM jobs WHERE fit_score = 0 AND duplicate_of IS NULL"
+    elif rescore_all:
         query = "SELECT * FROM jobs WHERE duplicate_of IS NULL"
     else:
         query = "SELECT * FROM jobs WHERE fit_score IS NULL AND duplicate_of IS NULL"
@@ -99,6 +103,10 @@ async def score_jobs(rescore_all: bool = False, limit: int | None = None):
                 logger.error(f"  → Failed: {e}")
                 failed += 1
 
+            # Avoid Groq rate limits (~30 req/min on free tier)
+            if i < total:
+                await asyncio.sleep(3)
+
     finally:
         await scorer.close()
         await db.disconnect()
@@ -119,9 +127,14 @@ def main():
         default=None,
         help="Maximum number of jobs to score"
     )
+    parser.add_argument(
+        "--failed",
+        action="store_true",
+        help="Re-score only jobs with score=0 (rate-limit failures)"
+    )
     args = parser.parse_args()
 
-    asyncio.run(score_jobs(rescore_all=args.all, limit=args.limit))
+    asyncio.run(score_jobs(rescore_all=args.all, limit=args.limit, failed_only=args.failed))
 
 
 if __name__ == "__main__":

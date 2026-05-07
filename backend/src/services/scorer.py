@@ -26,8 +26,7 @@ SCORING_USER_PROMPT = """Evaluate how well this job matches the candidate's prof
   - ML Tools: {ml_tools}
   - Platforms: {platforms}
   - Other: {other_skills}
-- Preferred Locations: {locations}
-- Preferred Work Types: {work_types}
+- Preferred Locations & Work Types: {location_work_rules}
 - Preferred Industries: {industries}
 - Minimum Salary: {min_salary}
 - Dealbreakers: {dealbreakers}
@@ -44,7 +43,7 @@ SCORING_USER_PROMPT = """Evaluate how well this job matches the candidate's prof
 ## Scoring Rubric (100 points total):
 1. Title Match (25 pts): How well does the job title align with target titles?
 2. Skills Match (35 pts): How many required skills does the candidate have?
-3. Location/Work Type (15 pts): Does location and work arrangement fit preferences?
+3. Location/Work Type (15 pts): Does the job's location and work arrangement fit the candidate's location-specific preferences? E.g., if the candidate wants onsite in San Antonio but hybrid in Austin, score accordingly.
 4. Salary Fit (10 pts): Is the salary within acceptable range?
 5. Experience Level (10 pts): Does the experience level requirement match?
 6. Industry Preference (5 pts bonus): Is this in a preferred industry?
@@ -140,6 +139,22 @@ class ScorerService:
         min_salary = profile.get("min_salary")
         min_salary_str = f"${min_salary:,}" if min_salary else "Not specified"
 
+        # Build location/work-type rules string
+        location_rules = profile.get("location_rules", {})
+        if location_rules:
+            location_work_rules = "; ".join(
+                f"{loc}: {', '.join(types)}"
+                for loc, types in location_rules.items()
+            )
+            # Append any locations without specific rules
+            for loc in profile.get("locations", []):
+                if loc not in location_rules:
+                    location_work_rules += f"; {loc}: any"
+        else:
+            locs = ", ".join(profile.get("locations", [])) or "Any"
+            types = ", ".join(profile.get("work_types", [])) or "Any"
+            location_work_rules = f"{locs} ({types})"
+
         prompt = SCORING_USER_PROMPT.format(
             name=profile.get("name", "Candidate"),
             target_titles=", ".join(profile.get("target_titles", [])) or "Any",
@@ -148,8 +163,7 @@ class ScorerService:
             ml_tools=ml_tools,
             platforms=platforms,
             other_skills=other_skills,
-            locations=", ".join(profile.get("locations", [])) or "Any",
-            work_types=", ".join(profile.get("work_types", [])) or "Any",
+            location_work_rules=location_work_rules,
             industries=", ".join(profile.get("industries", [])) or "Any",
             min_salary=min_salary_str,
             dealbreakers=", ".join(profile.get("dealbreakers", [])) or "None",
