@@ -54,6 +54,8 @@ dmypy.json
 # Project-specific exclusions
 backend/data/
 backend/profile/
+application_tracker.md
+backend/canopy.db
 
 # Node.js
 node_modules/
