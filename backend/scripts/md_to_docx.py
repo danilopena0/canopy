@@ -237,11 +237,116 @@ def convert(input_path: Path, output_path: Path) -> None:
     print(f"Saved: {output_path}")
 
 
-if __name__ == "__main__":
-    if len(sys.argv) < 2:
-        print("Usage: python scripts/md_to_docx.py <input.md> [output.docx]")
-        sys.exit(1)
+FONT_CL_NAME = 14.0
+FONT_CL_CONTACT = 9.5
+FONT_CL_BODY = 11.0
 
-    inp = Path(sys.argv[1])
-    out = Path(sys.argv[2]) if len(sys.argv) >= 3 else inp.with_suffix(".docx")
-    convert(inp, out)
+
+def convert_cover_letter(input_path: Path, output_path: Path) -> None:
+    """Convert a cover letter markdown file to a nicely formatted Word document.
+
+    Strips the ATS coverage table (everything from '## ATS Coverage' onward).
+    Structure expected:
+        - Header lines (name + contact) before the first '---'
+        - Body paragraphs after the first '---'
+        - Second '---' or '## ATS Coverage' signals end of letter content
+    """
+    doc = Document()
+
+    for sec in doc.sections:
+        sec.top_margin = Inches(1.0)
+        sec.bottom_margin = Inches(1.0)
+        sec.left_margin = Inches(1.25)
+        sec.right_margin = Inches(1.25)
+
+    normal = doc.styles["Normal"]
+    normal.font.name = "Calibri"
+    normal.font.size = Pt(FONT_CL_BODY)
+
+    raw_lines = input_path.read_text(encoding="utf-8").splitlines()
+
+    # Strip ATS coverage block
+    body_lines = []
+    for ln in raw_lines:
+        if ln.strip().startswith("## ATS Coverage"):
+            break
+        body_lines.append(ln)
+
+    # Remove trailing '---' left by the ATS divider
+    while body_lines and body_lines[-1].strip() in ("---", ""):
+        body_lines.pop()
+
+    in_header = True
+    header_first_line = True
+    closing_seen = False
+
+    for line in body_lines:
+        stripped = line.strip()
+
+        # First '---' ends the header block
+        if stripped == "---" and in_header:
+            in_header = False
+            p = doc.add_paragraph()
+            _spacing(p, before=0, after=6)
+            continue
+
+        if in_header:
+            if not stripped:
+                continue
+            p = doc.add_paragraph()
+            p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            if header_first_line:
+                _spacing(p, before=0, after=2)
+                run = p.add_run(stripped)
+                run.bold = True
+                run.font.size = Pt(FONT_CL_NAME)
+                header_first_line = False
+            else:
+                _spacing(p, before=0, after=1)
+                _parse_inline(p, stripped, base_size=FONT_CL_CONTACT)
+            continue
+
+        # Body
+        if not stripped:
+            continue
+
+        p = doc.add_paragraph()
+        p.alignment = WD_ALIGN_PARAGRAPH.LEFT
+
+        is_closing = stripped.lower().startswith("sincerely") or stripped.lower().startswith("best regards")
+        is_signature = closing_seen and not stripped.lower().startswith("sincerely")
+
+        if is_closing:
+            _spacing(p, before=12, after=0)
+            closing_seen = True
+            run = p.add_run(stripped)
+            run.font.size = Pt(FONT_CL_BODY)
+        elif is_signature:
+            _spacing(p, before=0, after=0)
+            run = p.add_run(stripped)
+            run.bold = True
+            run.font.size = Pt(FONT_CL_BODY)
+        else:
+            _spacing(p, before=0, after=6)
+            _parse_inline(p, stripped, base_size=FONT_CL_BODY)
+
+    doc.save(output_path)
+    print(f"Saved: {output_path}")
+
+
+if __name__ == "__main__":
+    import argparse
+
+    parser = argparse.ArgumentParser(description="Convert markdown to Word (.docx)")
+    parser.add_argument("input", help="Input .md file")
+    parser.add_argument("output", nargs="?", help="Output .docx file (defaults to same path)")
+    parser.add_argument("--cover", action="store_true", help="Format as a cover letter (not a resume)")
+    args = parser.parse_args()
+
+    inp = Path(args.input)
+    out = Path(args.output) if args.output else inp.with_suffix(".docx")
+
+    if args.cover:
+        convert_cover_letter(inp, out)
+    else:
+        convert(inp, out)
